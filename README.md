@@ -14,8 +14,9 @@
 6. [JPA와 데이터베이스](#jpa와-데이터베이스)
 7. [디자인 패턴](#디자인-패턴)
 8. [스프링 핵심 개념](#스프링-핵심-개념)
-9. [API 사용 방법](#api-사용-방법)
-10. [실행 방법](#실행-방법)
+9. [테스트 코드 구조](#테스트-코드-구조)
+10. [API 사용 방법](#api-사용-방법)
+11. [실행 방법](#실행-방법)
 
 ---
 
@@ -378,6 +379,277 @@ public abstract class PaymentProcessorFactory {
 | `@Column` / `@Enumerated` | 컬럼 설정 / Enum 저장 방식 |
 | `@Transactional` | 트랜잭션 경계 설정 |
 | `@Query` | 직접 JPQL/SQL 작성 |
+
+---
+
+## 테스트 코드 구조
+
+### 테스트 패키지 구조
+
+```
+src/test/java/com/example/payment/
+│
+├── todoFix/                              # [리팩토링 대상] 엉망진창인 테스트
+│   └── MessyPaymentTest.java             # 문제점이 많은 테스트 코드
+│
+├── unit/                                 # [권장] 단위 테스트 (스프링 컨텍스트 없음)
+│   ├── entity/
+│   │   └── PaymentEntityTest.java        # 엔티티 도메인 로직 테스트
+│   ├── policy/
+│   │   ├── DiscountPolicyTest.java       # 할인 정책 POJO 테스트
+│   │   └── TaxPolicyTest.java            # 세금 정책 POJO 테스트
+│   └── service/
+│       └── PaymentProcessorTest.java     # Mockito 기반 단위 테스트
+│
+├── integration/                          # [권장] 통합 테스트
+│   ├── repository/
+│   │   └── PaymentRepositoryTest.java    # @DataJpaTest 슬라이스
+│   └── service/
+│       └── PaymentServiceIntegrationTest.java  # @SpringBootTest 통합
+│
+└── web/                                  # [권장] 웹 레이어 테스트
+    └── PaymentControllerTest.java        # @WebMvcTest 슬라이스
+```
+
+### 테스트 어노테이션 비교
+
+| 테스트 유형 | 어노테이션 | 로딩 범위 | 속도 | 사용 시점 |
+|------------|-----------|----------|------|----------|
+| 단위 테스트 | 없음 / `@ExtendWith(MockitoExtension.class)` | 스프링 컨텍스트 없음 | 가장 빠름 | POJO 로직 검증 |
+| Repository 슬라이스 | `@DataJpaTest` | JPA 관련만 | 빠름 | Repository 쿼리 검증 |
+| Controller 슬라이스 | `@WebMvcTest` | MVC 관련만 | 빠름 | HTTP 요청/응답 검증 |
+| 전체 통합 테스트 | `@SpringBootTest` | 전체 컨텍스트 | 느림 | E2E 플로우 검증 |
+
+### 테스트 피라미드
+
+```
+        /\          E2E / 통합 테스트 (적게)
+       /  \         - @SpringBootTest
+      /----\
+     /      \       슬라이스 테스트 (적당히)
+    /--------\      - @WebMvcTest, @DataJpaTest
+   /          \
+  /------------\    단위 테스트 (많이)
+ /              \   - 순수 POJO, Mockito
+```
+
+### todoFix vs 정리된 테스트 비교
+
+#### todoFix/MessyPaymentTest.java의 문제점
+
+```java
+// [문제점 1] POJO 테스트에 @SpringBootTest 사용 - 불필요하게 무거움!
+@SpringBootTest
+@AutoConfigureMockMvc
+class MessyPaymentTest {
+
+    // [문제점 2] POJO 테스트인데 스프링 의존성
+    @Autowired
+    private MockMvc mockMvc;
+
+    // [문제점 3] 매직 넘버 사용 - 의미 파악 어려움
+    @Test
+    void test1() {
+        double result = new DefaultDiscountPolicy().apply(10000, true);
+        assertEquals(8500, result);  // 8500이 뭐지?
+    }
+
+    // [문제점 4] 테스트 메서드명이 불명확
+    @Test
+    void testPayment() { ... }
+
+    // [문제점 5] @Nested로 그룹화 안 됨
+    // [문제점 6] Given-When-Then 구조 없음
+    // [문제점 7] 테스트 간 데이터 격리 미흡
+}
+```
+
+#### 정리된 테스트 코드 예시
+
+**1. 단위 테스트 (unit/policy/DiscountPolicyTest.java)**
+
+```java
+// 스프링 컨텍스트 없이 순수 Java 테스트
+@DisplayName("할인 정책 단위 테스트")
+class DiscountPolicyTest {
+
+    private static final double VIP_DISCOUNT_RATE = 0.15;  // 상수로 의미 명확화
+
+    @Nested
+    @DisplayName("VIP 고객 할인 테스트")  // 논리적 그룹화
+    class VipDiscountTest {
+
+        @ParameterizedTest(name = "원가 {0}원 → VIP 할인가 {1}원")
+        @CsvSource({"10000, 8500", "20000, 17000"})
+        void shouldCalculateCorrectVipDiscount(double original, double expected) {
+            // Given
+            DiscountPolicy policy = new DefaultDiscountPolicy();
+
+            // When
+            double discounted = policy.apply(original, true);
+
+            // Then
+            assertThat(discounted)
+                .as("VIP 15%% 할인 적용")
+                .isEqualTo(expected);
+        }
+    }
+}
+```
+
+**2. Mock 기반 단위 테스트 (unit/service/PaymentProcessorTest.java)**
+
+```java
+@ExtendWith(MockitoExtension.class)  // 스프링 없이 Mockito만 사용
+@DisplayName("PaymentProcessor 단위 테스트")
+class PaymentProcessorTest {
+
+    @Mock  // Mock 객체 생성
+    private DiscountPolicy discountPolicy;
+
+    @Mock
+    private TaxPolicy taxPolicy;
+
+    @Test
+    @DisplayName("할인 정책과 세금 정책이 순서대로 적용된다")
+    void shouldApplyDiscountThenTax() {
+        // Given - BDD 스타일
+        given(discountPolicy.apply(anyDouble(), anyBoolean()))
+            .willReturn(8500.0);
+        given(taxPolicy.apply(anyDouble()))
+            .willReturn(9350.0);
+
+        // When
+        PaymentResult result = processor.process(10000, "KR", true);
+
+        // Then - 행위 검증
+        then(discountPolicy).should(times(1)).apply(10000.0, true);
+        then(taxPolicy).should(times(1)).apply(8500.0);
+    }
+}
+```
+
+**3. Repository 슬라이스 테스트 (integration/repository/PaymentRepositoryTest.java)**
+
+```java
+@DataJpaTest  // JPA 관련 빈만 로딩 (가벼움)
+@DisplayName("PaymentRepository 슬라이스 테스트")
+class PaymentRepositoryTest {
+
+    @Autowired
+    private PaymentRepository paymentRepository;
+
+    @Autowired
+    private TestEntityManager entityManager;  // 테스트용 EntityManager
+
+    @Test
+    @DisplayName("상태별로 결제를 조회할 수 있다")
+    void shouldFindByStatus() {
+        // Given - TestEntityManager로 직접 저장
+        entityManager.persistAndFlush(createCompletedPayment());
+        entityManager.clear();  // 1차 캐시 초기화
+
+        // When
+        List<Payment> payments = paymentRepository.findByStatus(COMPLETED);
+
+        // Then
+        assertThat(payments).hasSize(1);
+    }
+}
+```
+
+**4. Controller 슬라이스 테스트 (web/PaymentControllerTest.java)**
+
+```java
+@WebMvcTest(PaymentController.class)  // Controller만 테스트
+@DisplayName("PaymentController 웹 레이어 테스트")
+class PaymentControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;  // HTTP 요청 시뮬레이션
+
+    @MockBean  // 스프링 컨텍스트에 Mock 빈 등록
+    private PaymentService paymentService;
+
+    @Test
+    @DisplayName("유효한 요청으로 결제 생성 시 200 OK 반환")
+    void shouldCreatePayment() throws Exception {
+        // Given
+        given(paymentService.processPayment(any()))
+            .willReturn(new PaymentResult(...));
+
+        // When & Then
+        mockMvc.perform(post("/api/payments")
+                .contentType(APPLICATION_JSON)
+                .content("{\"originalPrice\": 10000}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.taxedAmount").value(9350));
+    }
+}
+```
+
+**5. 전체 통합 테스트 (integration/service/PaymentServiceIntegrationTest.java)**
+
+```java
+@SpringBootTest      // 전체 컨텍스트 로딩
+@Transactional       // 테스트 후 자동 롤백
+@DisplayName("PaymentService 통합 테스트")
+class PaymentServiceIntegrationTest {
+
+    @Autowired
+    private PaymentService paymentService;
+
+    @Autowired
+    private PaymentRepository paymentRepository;
+
+    @Test
+    @DisplayName("결제 생성 → 조회 → 환불 전체 플로우")
+    void completePaymentFlow() {
+        // 1. 결제 생성
+        PaymentResult result = paymentService.processPayment(
+            new PaymentRequest(50000, "KR", true)
+        );
+        assertThat(result.taxedAmount()).isEqualTo(46750);
+
+        // 2. 조회
+        Payment payment = paymentRepository.findAll().get(0);
+        assertThat(payment.getStatus()).isEqualTo(COMPLETED);
+
+        // 3. 환불
+        Payment refunded = paymentService.refundPayment(payment.getId());
+        assertThat(refunded.getStatus()).isEqualTo(REFUNDED);
+    }
+}
+```
+
+### 테스트 코드 개선 체크리스트
+
+| 항목 | todoFix | 정리된 테스트 |
+|------|---------|--------------|
+| 적절한 테스트 어노테이션 | ❌ 모든 곳에 @SpringBootTest | ✅ 레이어별 적절한 어노테이션 |
+| 테스트 메서드명 | ❌ test1, testPayment | ✅ @DisplayName으로 한글 설명 |
+| 논리적 그룹화 | ❌ 평면적 구조 | ✅ @Nested로 계층화 |
+| 매직 넘버 | ❌ 하드코딩된 숫자 | ✅ 상수로 의미 명확화 |
+| Given-When-Then | ❌ 구조 없음 | ✅ 명확한 구조 |
+| Assertion 메시지 | ❌ 없음 | ✅ as()로 실패 시 힌트 제공 |
+| 다양한 케이스 | ❌ 단일 케이스 | ✅ @ParameterizedTest |
+| 데이터 격리 | ❌ 테스트 간 영향 | ✅ @Transactional 롤백 |
+
+### 테스트 실행 방법
+
+```bash
+# 전체 테스트 실행
+./gradlew test
+
+# 특정 테스트 클래스만 실행
+./gradlew test --tests "PaymentProcessorTest"
+
+# 특정 패키지만 실행
+./gradlew test --tests "com.example.payment.unit.*"
+
+# 테스트 리포트 확인
+open build/reports/tests/test/index.html
+```
 
 ---
 
