@@ -6,8 +6,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
+
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * ============================================================================
@@ -15,14 +16,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * ============================================================================
  *
  * [테스트 특징]
- * - JPA/DB 없이 순수 도메인 로직만 테스트
- * - 엔티티의 생성, 상태 변경, 비즈니스 규칙 검증
+ * - JPA/DB 없이 순수 엔티티만 테스트
+ * - 엔티티의 생성, getter/setter 검증
  * - 스프링 컨텍스트 불필요 → 빠른 실행
  *
  * [테스트 범위]
  * - 정적 팩토리 메서드 (Payment.create)
- * - 상태 변경 메서드 (complete, fail, refund)
- * - 비즈니스 규칙 (환불 조건 등)
+ * - Getter/Setter 메서드
  */
 @DisplayName("Payment 엔티티 단위 테스트")
 class PaymentEntityTest {
@@ -96,158 +96,78 @@ class PaymentEntityTest {
     }
 
     @Nested
-    @DisplayName("결제 완료 테스트")
-    class PaymentCompletionTest {
+    @DisplayName("Setter 테스트")
+    class SetterTest {
 
         @Test
-        @DisplayName("PENDING 상태의 결제를 완료할 수 있다")
-        void shouldCompletePayment() {
-            // Given
-            Payment payment = createTestPayment();
-            assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
-
-            // When
-            payment.complete();
-
-            // Then
-            assertThat(payment.getStatus())
-                    .as("완료 처리 후 COMPLETED 상태여야 합니다")
-                    .isEqualTo(PaymentStatus.COMPLETED);
-        }
-
-        @Test
-        @DisplayName("완료 처리 시 수정 시간이 갱신된다")
-        void completeShouldUpdateTimestamp() {
-            // Given
-            Payment payment = createTestPayment();
-            var originalUpdatedAt = payment.getUpdatedAt();
-
-            // 시간 차이를 만들기 위해 짧은 대기
-            try { Thread.sleep(10); } catch (InterruptedException ignored) {}
-
-            // When
-            payment.complete();
-
-            // Then
-            assertThat(payment.getUpdatedAt())
-                    .as("수정 시간이 갱신되어야 합니다")
-                    .isAfterOrEqualTo(originalUpdatedAt);
-        }
-    }
-
-    @Nested
-    @DisplayName("결제 실패 테스트")
-    class PaymentFailureTest {
-
-        @Test
-        @DisplayName("PENDING 상태의 결제를 실패 처리할 수 있다")
-        void shouldFailPayment() {
+        @DisplayName("setStatus로 상태를 변경할 수 있다")
+        void shouldChangeStatusWithSetter() {
             // Given
             Payment payment = createTestPayment();
 
             // When
-            payment.fail();
+            payment.setStatus(PaymentStatus.COMPLETED);
 
             // Then
-            assertThat(payment.getStatus())
-                    .as("실패 처리 후 FAILED 상태여야 합니다")
-                    .isEqualTo(PaymentStatus.FAILED);
-        }
-    }
-
-    @Nested
-    @DisplayName("결제 환불 테스트")
-    class PaymentRefundTest {
-
-        @Test
-        @DisplayName("완료된 결제를 환불할 수 있다")
-        void shouldRefundCompletedPayment() {
-            // Given
-            Payment payment = createTestPayment();
-            payment.complete();  // 먼저 완료 처리
             assertThat(payment.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
+        }
+
+        @Test
+        @DisplayName("setUpdatedAt로 수정 시간을 변경할 수 있다")
+        void shouldChangeUpdatedAtWithSetter() {
+            // Given
+            Payment payment = createTestPayment();
+            LocalDateTime newTime = LocalDateTime.now().plusHours(1);
 
             // When
-            payment.refund();
+            payment.setUpdatedAt(newTime);
 
             // Then
-            assertThat(payment.getStatus())
-                    .as("환불 처리 후 REFUNDED 상태여야 합니다")
-                    .isEqualTo(PaymentStatus.REFUNDED);
-        }
-
-        @Test
-        @DisplayName("PENDING 상태의 결제는 환불할 수 없다")
-        void shouldNotRefundPendingPayment() {
-            // Given
-            Payment payment = createTestPayment();
-            assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
-
-            // When & Then
-            assertThatThrownBy(() -> payment.refund())
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("완료된 결제만 환불");
-        }
-
-        @Test
-        @DisplayName("실패한 결제는 환불할 수 없다")
-        void shouldNotRefundFailedPayment() {
-            // Given
-            Payment payment = createTestPayment();
-            payment.fail();
-            assertThat(payment.getStatus()).isEqualTo(PaymentStatus.FAILED);
-
-            // When & Then
-            assertThatThrownBy(() -> payment.refund())
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("완료된 결제만 환불");
-        }
-
-        @Test
-        @DisplayName("이미 환불된 결제는 다시 환불할 수 없다")
-        void shouldNotRefundAlreadyRefundedPayment() {
-            // Given
-            Payment payment = createTestPayment();
-            payment.complete();
-            payment.refund();
-            assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
-
-            // When & Then
-            assertThatThrownBy(() -> payment.refund())
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("완료된 결제만 환불");
+            assertThat(payment.getUpdatedAt()).isEqualTo(newTime);
         }
     }
 
     @Nested
-    @DisplayName("상태 전이 테스트")
-    class StatusTransitionTest {
+    @DisplayName("상태 변경 테스트")
+    class StatusChangeTest {
 
         @Test
-        @DisplayName("정상적인 결제 플로우: PENDING → COMPLETED → REFUNDED")
-        void normalPaymentFlow() {
+        @DisplayName("PENDING에서 COMPLETED로 변경할 수 있다")
+        void shouldChangeFromPendingToCompleted() {
             // Given
             Payment payment = createTestPayment();
 
-            // When & Then: PENDING → COMPLETED
-            assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
-            payment.complete();
-            assertThat(payment.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
+            // When
+            payment.setStatus(PaymentStatus.COMPLETED);
 
-            // When & Then: COMPLETED → REFUNDED
-            payment.refund();
+            // Then
+            assertThat(payment.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
+        }
+
+        @Test
+        @DisplayName("COMPLETED에서 REFUNDED로 변경할 수 있다")
+        void shouldChangeFromCompletedToRefunded() {
+            // Given
+            Payment payment = createTestPayment();
+            payment.setStatus(PaymentStatus.COMPLETED);
+
+            // When
+            payment.setStatus(PaymentStatus.REFUNDED);
+
+            // Then
             assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
         }
 
         @Test
-        @DisplayName("실패 플로우: PENDING → FAILED")
-        void failedPaymentFlow() {
+        @DisplayName("PENDING에서 FAILED로 변경할 수 있다")
+        void shouldChangeFromPendingToFailed() {
             // Given
             Payment payment = createTestPayment();
 
-            // When & Then
-            assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
-            payment.fail();
+            // When
+            payment.setStatus(PaymentStatus.FAILED);
+
+            // Then
             assertThat(payment.getStatus()).isEqualTo(PaymentStatus.FAILED);
         }
     }
@@ -258,8 +178,6 @@ class PaymentEntityTest {
 
     /**
      * 테스트용 Payment 객체 생성 헬퍼
-     * - 반복되는 객체 생성 코드를 추출
-     * - 테스트 코드 가독성 향상
      */
     private Payment createTestPayment() {
         return Payment.create(

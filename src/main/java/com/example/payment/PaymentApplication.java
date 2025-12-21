@@ -2,6 +2,9 @@ package com.example.payment;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
  * ====================================================================
@@ -32,6 +35,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * 스프링이 대신 생성하고 관리합니다. 이를 IoC(제어의 역전)라고 합니다.
  */
 @SpringBootApplication
+@ComponentScan(basePackages = {"com.example.payment", "com.example.payment_ddd"})
+@EntityScan(basePackages = {"com.example.payment", "com.example.payment_ddd"})
+@EnableJpaRepositories(basePackages = {"com.example.payment", "com.example.payment_ddd"})
 public class PaymentApplication {
 
     /**

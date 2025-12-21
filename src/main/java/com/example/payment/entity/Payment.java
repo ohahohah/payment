@@ -13,25 +13,15 @@ import java.time.LocalDateTime;
  * - JPA가 이 클래스를 보고 테이블을 생성하고, CRUD 작업을 수행합니다
  * - 하나의 엔티티 인스턴스 = 테이블의 한 행(Row)
  *
- * [ORM (Object-Relational Mapping)]
- * - 객체와 관계형 데이터베이스를 매핑하는 기술입니다
- * - SQL을 직접 작성하지 않고 객체 지향적으로 DB 작업을 할 수 있습니다
- * - 자바 코드: payment.setAmount(1000)
- * - 변환된 SQL: UPDATE payment SET amount = 1000 WHERE id = ?
+ * [현재 구조]
+ * - 엔티티는 데이터(getter/setter)만 제공
+ * - 모든 비즈니스 로직은 PaymentService에서 처리
  *
  * [@Entity 어노테이션]
  * - 이 클래스가 JPA 엔티티임을 나타냅니다
- * - 스프링 부트가 시작할 때 이 클래스를 스캔하여 테이블을 생성합니다
  *
  * [@Table 어노테이션]
  * - 매핑할 테이블 정보를 지정합니다
- * - name: 테이블명 (생략 시 클래스명이 테이블명)
- * - 실제 생성되는 테이블: payments
- *
- * [엔티티 설계 원칙]
- * 1. 식별자(@Id)가 반드시 있어야 함
- * 2. 기본 생성자가 필요 (JPA 스펙)
- * 3. final 클래스면 안 됨 (프록시 생성 불가)
  */
 @Entity
 @Table(name = "payments")
@@ -192,50 +182,9 @@ public class Payment {
         return new Payment(originalPrice, discountedAmount, taxedAmount, country, isVip);
     }
 
-    /**
-     * 결제 완료 처리
-     *
-     * [도메인 로직을 엔티티에 넣는 이유]
-     * - 상태 변경 + 시간 갱신을 한 곳에서 처리 (일관성)
-     * - 비즈니스 규칙이 엔티티에 캡슐화됨
-     * - 서비스 계층이 단순해짐
-     *
-     * [DDD (Domain-Driven Design)]
-     * - 도메인 로직은 엔티티나 도메인 서비스에 위치
-     * - Rich Domain Model (풍부한 도메인 모델)
-     * - vs Anemic Domain Model (빈약한 도메인 모델 - getter/setter만)
-     */
-    public void complete() {
-        this.status = PaymentStatus.COMPLETED;
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    /**
-     * 결제 실패 처리
-     */
-    public void fail() {
-        this.status = PaymentStatus.FAILED;
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    /**
-     * 환불 처리
-     */
-    public void refund() {
-        if (this.status != PaymentStatus.COMPLETED) {
-            throw new IllegalStateException("완료된 결제만 환불할 수 있습니다.");
-        }
-        this.status = PaymentStatus.REFUNDED;
-        this.updatedAt = LocalDateTime.now();
-    }
-
     // ==========================================================================
-    // Getter 메서드들
+    // Getter / Setter 메서드들
     // ==========================================================================
-    // [왜 Setter가 없나요?]
-    // - 엔티티의 불변성을 최대한 유지하기 위함입니다
-    // - 상태 변경은 의미 있는 메서드(complete, fail, refund)를 통해서만
-    // - Setter를 열어두면 아무 곳에서나 상태 변경이 가능해져 버그 추적이 어려움
 
     public Long getId() {
         return id;
@@ -271,5 +220,21 @@ public class Payment {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    /**
+     * 결제 상태 변경
+     * @param status 새로운 상태
+     */
+    public void setStatus(PaymentStatus status) {
+        this.status = status;
+    }
+
+    /**
+     * 수정 일시 변경
+     * @param updatedAt 수정 일시
+     */
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }

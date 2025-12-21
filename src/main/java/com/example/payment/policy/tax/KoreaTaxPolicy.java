@@ -1,5 +1,8 @@
 package com.example.payment.policy.tax;
 
+import org.springframework.context.annotation.Primary;
+import org.springframework.stereotype.Component;
+
 /**
  * ====================================================================
  * KoreaTaxPolicy - 한국 세금 정책 구현체
@@ -14,11 +17,21 @@ package com.example.payment.policy.tax;
  * - 대부분의 상품과 서비스에 적용됩니다
  * - 일부 품목(농산물, 의료 등)은 면세 또는 영세율이 적용됩니다
  *
+ * [@Component 어노테이션] (Spring Boot 권장 방식)
+ * - 이 클래스를 스프링 빈으로 자동 등록합니다
+ * - 컴포넌트 스캔에 의해 자동으로 발견되고 빈으로 등록됩니다
+ *
+ * [@Primary 어노테이션]
+ * - TaxPolicy 타입의 빈이 여러 개(KoreaTaxPolicy, UsTaxPolicy)일 때
+ * - 기본으로 이 빈이 주입됩니다
+ *
  * [상수(Constant) 사용]
  * - 세율 0.1을 상수로 정의하여 의미를 명확히 합니다
  * - 매직 넘버(의미를 알 수 없는 숫자) 사용을 피합니다
  * - 나중에 세율이 바뀌면 이 한 곳만 수정하면 됩니다
  */
+@Component
+@Primary
 public class KoreaTaxPolicy implements TaxPolicy {
 
     /**
@@ -46,11 +59,17 @@ public class KoreaTaxPolicy implements TaxPolicy {
      * - 세율: 10% (0.1)
      * - 계산: 9,000 × (1 + 0.1) = 9,000 × 1.1 = 9,900원
      *
+     * [부동소수점 오차 처리]
+     * - double 연산은 IEEE 754 표준을 따르며 정밀도 한계가 있습니다
+     * - 예: 100000.0 * 0.03 = 3000.0000000000146 (오차 발생)
+     * - Math.round()로 반올림하여 금액 계산의 정확성을 보장합니다
+     * - 실무에서는 BigDecimal 사용을 권장합니다
+     *
      * @param discountedPrice 할인 적용 후 가격
-     * @return 세금 포함 최종 가격
+     * @return 세금 포함 최종 가격 (반올림 처리)
      */
     @Override
     public double apply(double discountedPrice) {
-        return discountedPrice * (1 + TAX_RATE);
+        return Math.round(discountedPrice * (1 + TAX_RATE));
     }
 }

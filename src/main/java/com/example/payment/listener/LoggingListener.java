@@ -3,6 +3,7 @@ package com.example.payment.listener;
 import com.example.payment.dto.PaymentResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
 /**
  * ====================================================================
@@ -12,6 +13,11 @@ import org.slf4j.LoggerFactory;
  * [이 클래스의 역할]
  * - 결제가 완료되면 로그를 기록합니다
  * - PaymentListener 인터페이스의 구현체입니다
+ *
+ * [@Component 어노테이션] (Spring Boot 권장 방식)
+ * - 이 클래스를 스프링 빈으로 자동 등록합니다
+ * - 스프링이 List<PaymentListener>를 주입할 때 자동으로 수집됩니다
+ * - 새 리스너 추가 시 @Component만 붙이면 자동 등록 (OCP 원칙)
  *
  * [로깅 (Logging)의 중요성]
  * 1. 디버깅: 문제 발생 시 원인 추적
@@ -26,6 +32,7 @@ import org.slf4j.LoggerFactory;
  * SLF4J를 사용하면 실제 로깅 구현체(Logback, Log4j 등)를
  * 코드 변경 없이 교체할 수 있습니다 (추상화의 장점!)
  */
+@Component
 public class LoggingListener implements PaymentListener {
 
     /**

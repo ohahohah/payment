@@ -208,4 +208,25 @@ public class PaymentController {
 
         return ResponseEntity.ok(responses);
     }
+
+    /**
+     * 예외 처리 핸들러
+     *
+     * [@ExceptionHandler]
+     * - 이 컨트롤러에서 발생하는 특정 예외를 처리합니다
+     * - IllegalArgumentException 발생 시 400 Bad Request 반환
+     *
+     * [전역 예외 처리]
+     * - 실무에서는 @ControllerAdvice로 전역 예외 처리를 구현합니다
+     * - 이 예제에서는 컨트롤러 내 로컬 핸들러 사용
+     *
+     * @param e 발생한 예외
+     * @return 400 Bad Request + 에러 메시지
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<String> handleIllegalArgumentException(IllegalArgumentException e) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(e.getMessage());
+    }
 }

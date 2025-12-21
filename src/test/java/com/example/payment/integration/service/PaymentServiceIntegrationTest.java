@@ -257,7 +257,7 @@ class PaymentServiceIntegrationTest {
 
             assertThat(result.originalPrice()).isEqualTo(50000);
             assertThat(result.discountedAmount()).isEqualTo(42500);  // 15% 할인
-            assertThat(result.taxedAmount()).isEqualTo(46750);       // 10% 세금
+            assertThat(result.taxedAmount()).isEqualTo(46750);       // 10% 세금 (Math.round 적용)
 
             // 2. 결제 조회
             Payment payment = paymentRepository.findAll().get(0);

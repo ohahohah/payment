@@ -3,6 +3,7 @@ package com.example.payment.listener;
 import com.example.payment.dto.PaymentResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
 /**
  * ====================================================================
@@ -13,6 +14,11 @@ import org.slf4j.LoggerFactory;
  * - 결제가 완료되면 정산 요청이 필요한지 판단합니다
  * - 결제 금액이 일정 금액 이상이면 정산 요청을 발송합니다
  * - PaymentListener 인터페이스의 구현체입니다
+ *
+ * [@Component 어노테이션] (Spring Boot 권장 방식)
+ * - 이 클래스를 스프링 빈으로 자동 등록합니다
+ * - 스프링이 List<PaymentListener>를 주입할 때 자동으로 수집됩니다
+ * - 새 리스너 추가 시 @Component만 붙이면 자동 등록 (OCP 원칙)
  *
  * [정산 (Settlement)이란?]
  * - 결제된 금액을 판매자에게 입금하는 과정입니다
@@ -32,6 +38,7 @@ import org.slf4j.LoggerFactory;
  *
  * 각 관심사를 분리하여 관리할 수 있습니다 (단일 책임 원칙, SRP)
  */
+@Component
 public class SettlementListener implements PaymentListener {
 
     /**

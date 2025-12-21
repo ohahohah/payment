@@ -90,7 +90,7 @@ class PaymentRepositoryTest {
         void shouldFindById() {
             // Given - TestEntityManager로 직접 저장
             Payment payment = createTestPayment();
-            payment.complete();
+            payment.setStatus(PaymentStatus.COMPLETED);
             Payment saved = entityManager.persistAndFlush(payment);
 
             // 영속성 컨텍스트 초기화 (1차 캐시 제거)
@@ -324,7 +324,7 @@ class PaymentRepositoryTest {
 
     private Payment createCompletedPayment(double originalPrice) {
         Payment payment = createTestPayment(originalPrice);
-        payment.complete();
+        payment.setStatus(PaymentStatus.COMPLETED);
         return payment;
     }
 }

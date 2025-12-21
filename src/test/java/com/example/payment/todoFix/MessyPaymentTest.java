@@ -10,7 +10,6 @@ import com.example.payment.policy.tax.KoreaTaxPolicy;
 import com.example.payment.policy.tax.TaxPolicy;
 import com.example.payment.policy.tax.UsTaxPolicy;
 import com.example.payment.repository.PaymentRepository;
-import com.example.payment.service.PaymentProcessor;
 import com.example.payment.service.PaymentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -21,10 +20,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.Collections;
-
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -58,29 +54,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * 5. 불필요한 의존성
  *    - MockMvc, ObjectMapper 등을 POJO 테스트에서도 로딩
- *
- * [어떻게 개선해야 할까?]
- *
- * 1. 단위 테스트 분리 (Unit Test)
- *    - POJO 로직은 @SpringBootTest 없이 순수 JUnit으로 테스트
- *    - 빠른 피드백 (밀리초 단위)
- *    - Mock 객체 활용
- *
- * 2. 슬라이스 테스트 사용
- *    - @WebMvcTest: Controller 레이어만 테스트
- *    - @DataJpaTest: Repository 레이어만 테스트
- *    - 필요한 빈만 로딩하여 테스트 속도 향상
- *
- * 3. 통합 테스트 최소화
- *    - @SpringBootTest는 정말 필요한 경우에만 사용
- *    - E2E 테스트나 전체 플로우 검증 시에만 사용
- *
- * 4. 테스트 구조화
- *    - Given-When-Then 패턴 사용
- *    - 명확한 테스트 메서드명
- *    - @Nested로 테스트 그룹화
  */
-@SpringBootTest  // [문제점] 모든 테스트에 전체 컨텍스트 로딩 - 매우 무거움!
+@SpringBootTest  // [문제점] 모든 테스트에 전체 컨텍스트 로딩 - 매우 무거움
 @AutoConfigureMockMvc
 class MessyPaymentTest {
 
@@ -99,14 +74,14 @@ class MessyPaymentTest {
 
     // ========================================================================
     // [문제점] POJO 로직 테스트인데 @SpringBootTest 사용
-    // 이 테스트들은 스프링 컨텍스트가 전혀 필요 없음!
+    // 이 테스트들은 스프링 컨텍스트가 전혀 필요 없음
     // ========================================================================
 
     @Test
     @DisplayName("할인 정책 테스트")  // [문제점] 무엇을 테스트하는지 불명확
     void testDiscount() {
         // [문제점] @SpringBootTest로 전체 컨텍스트 로딩했지만
-        // 실제로는 new로 직접 생성해서 테스트함 - 의미 없는 오버헤드!
+        // 실제로는 new로 직접 생성해서 테스트함 - 의미 없는 오버헤드
         DiscountPolicy policy = new DefaultDiscountPolicy();
 
         // [문제점] 매직 넘버 사용, 테스트 의도 불명확
@@ -131,62 +106,18 @@ class MessyPaymentTest {
     @Test
     @DisplayName("엔티티 테스트")  // [문제점] DB 연결 없이도 되는 테스트인데 @SpringBootTest 사용
     void testEntity() {
-        // [문제점] Payment 엔티티의 도메인 로직 테스트
-        // 이것은 순수 자바 객체 테스트이므로 스프링이 필요 없음!
+        // [문제점] Payment 엔티티 테스트
+        // 이것은 순수 자바 객체 테스트이므로 스프링이 필요 없음
         Payment payment = Payment.create(10000.0, 8500.0, 9350.0, "KR", true);
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
 
-        payment.complete();
+        // setter로 상태 변경
+        payment.setStatus(PaymentStatus.COMPLETED);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
 
-        payment.refund();
+        payment.setStatus(PaymentStatus.REFUNDED);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
-    }
-
-    @Test
-    @DisplayName("엔티티 예외 테스트")
-    void testEntityException() {
-        // [문제점] 예외 테스트도 POJO 테스트인데 @SpringBootTest 사용
-        Payment payment = Payment.create(10000.0, 8500.0, 9350.0, "KR", true);
-
-        // PENDING 상태에서 환불 시도 - 예외 발생해야 함
-        assertThatThrownBy(() -> payment.refund())
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("완료된 결제만 환불");
-    }
-
-    @Test
-    @DisplayName("프로세서 테스트")  // [문제점] 이것도 POJO 테스트
-    void testProcessor() {
-        // [문제점] PaymentProcessor도 순수 자바 객체인데 스프링 컨텍스트 사용
-        DiscountPolicy discountPolicy = new DefaultDiscountPolicy();
-        TaxPolicy taxPolicy = new KoreaTaxPolicy();
-
-        PaymentProcessor processor = new PaymentProcessor(
-                discountPolicy, taxPolicy, Collections.emptyList()
-        );
-
-        PaymentResult result = processor.process(10000, "KR", true);
-
-        assertThat(result.originalPrice()).isEqualTo(10000);
-        assertThat(result.discountedAmount()).isEqualTo(8500);
-        assertThat(result.taxedAmount()).isEqualTo(9350);
-    }
-
-    @Test
-    @DisplayName("프로세서 예외 테스트")
-    void testProcessorException() {
-        DiscountPolicy discountPolicy = new DefaultDiscountPolicy();
-        TaxPolicy taxPolicy = new KoreaTaxPolicy();
-        PaymentProcessor processor = new PaymentProcessor(
-                discountPolicy, taxPolicy, Collections.emptyList()
-        );
-
-        // [문제점] 음수 가격 예외 테스트 - POJO 테스트
-        assertThatThrownBy(() -> processor.process(-1000, "KR", true))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("잘못된 가격");
     }
 
     // ========================================================================
@@ -200,7 +131,7 @@ class MessyPaymentTest {
         // [문제점] Repository 테스트인데 @SpringBootTest 사용
         // @DataJpaTest를 사용하면 JPA 관련 빈만 로딩해서 더 빠름
         Payment payment = Payment.create(10000.0, 8500.0, 9350.0, "KR", true);
-        payment.complete();
+        payment.setStatus(PaymentStatus.COMPLETED);
 
         Payment saved = paymentRepository.save(payment);
 
@@ -213,7 +144,7 @@ class MessyPaymentTest {
     void testRepositoryFind() {
         // [문제점] 테스트 간 데이터 의존성 - 이전 테스트 데이터에 영향받을 수 있음
         Payment payment = Payment.create(20000.0, 17000.0, 18700.0, "US", false);
-        payment.complete();
+        payment.setStatus(PaymentStatus.COMPLETED);
         paymentRepository.save(payment);
 
         var found = paymentRepository.findByStatus(PaymentStatus.COMPLETED);
@@ -273,29 +204,6 @@ class MessyPaymentTest {
         assertThat(result.originalPrice()).isEqualTo(30000);
         // [문제점] 하드코딩된 계산값 - 할인율/세율 변경 시 테스트 실패
         assertThat(result.discountedAmount()).isEqualTo(25500);  // 30000 * 0.85
-        assertThat(result.taxedAmount()).isEqualTo(28050);       // 25500 * 1.1
+        assertThat(result.taxedAmount()).isEqualTo(28050);       // 25500 * 1.1 (Math.round 적용)
     }
-
-    // ========================================================================
-    // [추가 문제점들]
-    //
-    // 1. @BeforeEach, @AfterEach 없음
-    //    - 테스트 간 데이터 정리가 안됨
-    //    - 테스트 실행 순서에 따라 결과가 달라질 수 있음
-    //
-    // 2. 테스트 그룹화 없음 (@Nested)
-    //    - 관련 테스트들이 논리적으로 묶여있지 않음
-    //    - 테스트 리포트 가독성 저하
-    //
-    // 3. 테스트 데이터 빌더 패턴 미사용
-    //    - 테스트 데이터 생성이 중복됨
-    //    - 테스트 의도가 불명확함
-    //
-    // 4. 파라미터화 테스트 미사용
-    //    - 비슷한 테스트가 중복됨
-    //    - @ParameterizedTest로 개선 가능
-    //
-    // 5. 적절한 assertion 메시지 없음
-    //    - 실패 시 원인 파악 어려움
-    // ========================================================================
 }

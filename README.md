@@ -60,14 +60,13 @@ payment-processor/
 │   ├── PaymentApplication.java          # 애플리케이션 진입점
 │   │
 │   ├── config/
-│   │   └── PaymentConfig.java           # 스프링 빈 설정
+│   │   └── PaymentConfig.java           # 스프링 설정 (외부 라이브러리 빈용)
 │   │
 │   ├── controller/
 │   │   └── PaymentController.java       # REST API 컨트롤러
 │   │
 │   ├── service/
-│   │   ├── PaymentService.java          # 트랜잭션 관리 + 비즈니스 흐름
-│   │   └── PaymentProcessor.java        # 핵심 비즈니스 로직 (금액 계산)
+│   │   └── PaymentService.java          # 모든 비즈니스 로직 처리
 │   │
 │   ├── repository/
 │   │   └── PaymentRepository.java       # 데이터 접근 계층 (JPA Repository)
@@ -84,21 +83,17 @@ payment-processor/
 │   ├── policy/
 │   │   ├── discount/
 │   │   │   ├── DiscountPolicy.java      # 할인 전략 인터페이스
-│   │   │   └── DefaultDiscountPolicy.java # 기본 할인 구현체
+│   │   │   └── DefaultDiscountPolicy.java # @Component @Primary
 │   │   │
 │   │   └── tax/
 │   │       ├── TaxPolicy.java           # 세금 전략 인터페이스
-│   │       ├── KoreaTaxPolicy.java      # 한국 세금 구현체
-│   │       └── UsTaxPolicy.java         # 미국 세금 구현체
+│   │       ├── KoreaTaxPolicy.java      # @Component @Primary
+│   │       └── UsTaxPolicy.java         # @Component
 │   │
-│   ├── listener/
-│   │   ├── PaymentListener.java         # 옵저버 인터페이스
-│   │   ├── LoggingListener.java         # 로깅 옵저버
-│   │   └── SettlementListener.java      # 정산 옵저버
-│   │
-│   └── factory/
-│       ├── PaymentProcessorFactory.java      # 팩토리 추상 클래스
-│       └── DefaultPaymentProcessorFactory.java # 팩토리 구현체
+│   └── listener/
+│       ├── PaymentListener.java         # 옵저버 인터페이스
+│       ├── LoggingListener.java         # 로깅 옵저버 (@Component)
+│       └── SettlementListener.java      # 정산 옵저버 (@Component)
 │
 ├── src/main/resources/
 │   └── application.yml                  # 애플리케이션 설정 (DB, JPA 포함)
@@ -110,7 +105,7 @@ payment-processor/
 
 ## 아키텍처 다이어그램
 
-### 레이어 구조 (현업 구조)
+### 레이어 구조
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -124,10 +119,13 @@ payment-processor/
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      Service Layer                          │
-│   ┌──────────────────────┐   ┌──────────────────────┐       │
-│   │   PaymentService     │──▶│  PaymentProcessor    │       │
-│   │ (@Transactional)     │   │   (비즈니스 로직)     │       │
-│   └──────────────────────┘   └──────────────────────┘       │
+│   ┌─────────────────────────────────────────────────────┐   │
+│   │                   PaymentService                    │   │
+│   │  - @Transactional (트랜잭션 관리)                    │   │
+│   │  - 할인/세금 계산 (비즈니스 로직)                    │   │
+│   │  - 상태 변경 (도메인 로직)                           │   │
+│   │  - 리스너 알림                                       │   │
+│   └─────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                     │              │
            ┌───────┘              └───────┐
@@ -165,10 +163,11 @@ payment-processor/
 2. Controller → Service (트랜잭션 시작)
             │
             ▼
-3. PaymentProcessor (비즈니스 로직)
+3. PaymentService (모든 비즈니스 로직)
    ┌─────────────────────────────────────┐
    │ 할인 정책 적용 (DiscountPolicy)      │
    │ 세금 정책 적용 (TaxPolicy)           │
+   │ 엔티티 생성 및 상태 변경             │
    │ 리스너 알림 (PaymentListener)        │
    └─────────────────────────────────────┘
             │
@@ -217,7 +216,7 @@ payment-processor/
 │   ┌─────────────────────────────────────────────────────────────┐   │
 │   │                         Payment                             │   │
 │   │ - DB 테이블과 1:1 매핑                                       │   │
-│   │ - 도메인 로직 포함 (complete(), refund() 등)                  │   │
+│   │ - Getter/Setter만 제공 (데이터 홀더)                         │   │
 │   │ - JPA가 관리하는 영속 객체                                    │   │
 │   └─────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────┘
@@ -281,15 +280,16 @@ public class PaymentService {
 
     @Transactional  // 이 메서드를 트랜잭션으로 감싸기
     public PaymentResult processPayment(PaymentRequest request) {
-        // 1. 비즈니스 로직 수행
-        PaymentResult result = paymentProcessor.process(...);
+        // 1. 할인/세금 계산 (비즈니스 로직)
+        double discounted = discountPolicy.apply(request.originalPrice(), request.isVip());
+        double taxed = taxPolicy.apply(discounted);
 
         // 2. 엔티티 생성 및 저장
         Payment payment = Payment.create(...);
         paymentRepository.save(payment);  // INSERT
 
         // 3. 상태 변경 (Dirty Checking으로 자동 UPDATE)
-        payment.complete();
+        payment.setStatus(PaymentStatus.COMPLETED);
 
         // 메서드 정상 종료 시 자동 COMMIT
         // 예외 발생 시 자동 ROLLBACK
@@ -342,23 +342,9 @@ public interface PaymentListener {
 }
 
 // Subject가 모든 Observer에게 알림
+// 스프링이 List<PaymentListener>를 자동으로 수집하여 주입
 for (PaymentListener listener : listeners) {
     listener.onPaymentCompleted(result);
-}
-```
-
-### 3. 팩토리 메서드 패턴 (Factory Method Pattern)
-
-```java
-public abstract class PaymentProcessorFactory {
-    public PaymentProcessor create(String country, List<PaymentListener> listeners) {
-        DiscountPolicy discount = createDiscountPolicy();    // 팩토리 메서드
-        TaxPolicy tax = createTaxPolicy(country);            // 팩토리 메서드
-        return new PaymentProcessor(discount, tax, listeners);
-    }
-
-    protected abstract DiscountPolicy createDiscountPolicy();
-    protected abstract TaxPolicy createTaxPolicy(String country);
 }
 ```
 
@@ -371,14 +357,59 @@ public abstract class PaymentProcessorFactory {
 | 어노테이션 | 용도 |
 |-----------|------|
 | `@SpringBootApplication` | 애플리케이션 진입점, 자동 설정 활성화 |
-| `@Configuration` / `@Bean` | 빈 설정 클래스 / 빈 등록 메서드 |
-| `@Component` / `@Service` / `@Repository` | 컴포넌트 스캔으로 빈 등록 |
+| `@Component` | 일반 컴포넌트 빈 자동 등록 (Spring Boot 권장) |
+| `@Service` | 비즈니스 로직 계층 빈 자동 등록 |
+| `@Repository` | 데이터 접근 계층 빈 자동 등록 |
 | `@RestController` | REST API 컨트롤러 |
+| `@Configuration` / `@Bean` | 외부 라이브러리 빈 수동 등록 시에만 사용 |
+| `@Primary` | 동일 타입 빈이 여러 개일 때 기본 빈 지정 |
 | `@Entity` / `@Table` | JPA 엔티티 / 테이블 매핑 |
 | `@Id` / `@GeneratedValue` | 기본 키 / 자동 생성 전략 |
 | `@Column` / `@Enumerated` | 컬럼 설정 / Enum 저장 방식 |
 | `@Transactional` | 트랜잭션 경계 설정 |
 | `@Query` | 직접 JPQL/SQL 작성 |
+
+### Spring Boot 빈 등록 방식
+
+**1. @Component 스캔 (권장)**
+```java
+// 클래스에 직접 어노테이션을 붙이면 자동으로 빈 등록
+@Component
+@Primary  // 같은 타입의 빈이 여러 개일 때 기본 선택
+public class DefaultDiscountPolicy implements DiscountPolicy { ... }
+
+@Component
+public class LoggingListener implements PaymentListener { ... }
+```
+
+**장점:**
+- 해당 클래스 파일만 보면 빈인지 알 수 있음 (가독성)
+- Config 클래스가 비대해지지 않음 (유지보수성)
+- 빈 등록과 클래스 정의가 분리되지 않음 (응집도)
+
+**2. @Bean 수동 등록 (외부 라이브러리용)**
+```java
+@Configuration
+public class PaymentConfig {
+    // 외부 라이브러리 클래스는 @Component를 붙일 수 없으므로 @Bean 사용
+    @Bean
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper()
+            .registerModule(new JavaTimeModule());
+    }
+}
+```
+
+**3. List<T> 자동 수집**
+```java
+@Service
+public class PaymentProcessor {
+    // 스프링이 PaymentListener 타입의 모든 빈을 자동으로 수집하여 주입
+    public PaymentProcessor(List<PaymentListener> listeners) {
+        this.listeners = listeners;  // LoggingListener, SettlementListener 자동 수집
+    }
+}
+```
 
 ---
 
@@ -497,34 +528,44 @@ class DiscountPolicyTest {
 }
 ```
 
-**2. Mock 기반 단위 테스트 (unit/service/PaymentProcessorTest.java)**
+**2. 엔티티 단위 테스트 (unit/entity/PaymentEntityTest.java)**
 
 ```java
-@ExtendWith(MockitoExtension.class)  // 스프링 없이 Mockito만 사용
-@DisplayName("PaymentProcessor 단위 테스트")
-class PaymentProcessorTest {
+// 스프링 없이 순수 POJO 테스트
+@DisplayName("Payment 엔티티 단위 테스트")
+class PaymentEntityTest {
 
-    @Mock  // Mock 객체 생성
-    private DiscountPolicy discountPolicy;
+    @Nested
+    @DisplayName("결제 생성 테스트")
+    class PaymentCreationTest {
 
-    @Mock
-    private TaxPolicy taxPolicy;
+        @Test
+        @DisplayName("생성된 결제의 초기 상태는 PENDING이다")
+        void newPaymentShouldHavePendingStatus() {
+            // When
+            Payment payment = Payment.create(10000.0, 8500.0, 9350.0, "KR", true);
 
-    @Test
-    @DisplayName("할인 정책과 세금 정책이 순서대로 적용된다")
-    void shouldApplyDiscountThenTax() {
-        // Given - BDD 스타일
-        given(discountPolicy.apply(anyDouble(), anyBoolean()))
-            .willReturn(8500.0);
-        given(taxPolicy.apply(anyDouble()))
-            .willReturn(9350.0);
+            // Then
+            assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
+        }
+    }
 
-        // When
-        PaymentResult result = processor.process(10000, "KR", true);
+    @Nested
+    @DisplayName("Setter 테스트")
+    class SetterTest {
 
-        // Then - 행위 검증
-        then(discountPolicy).should(times(1)).apply(10000.0, true);
-        then(taxPolicy).should(times(1)).apply(8500.0);
+        @Test
+        @DisplayName("setStatus로 상태를 변경할 수 있다")
+        void shouldChangeStatusWithSetter() {
+            // Given
+            Payment payment = Payment.create(10000.0, 8500.0, 9350.0, "KR", true);
+
+            // When
+            payment.setStatus(PaymentStatus.COMPLETED);
+
+            // Then
+            assertThat(payment.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
+        }
     }
 }
 ```
@@ -626,14 +667,14 @@ class PaymentServiceIntegrationTest {
 
 | 항목 | todoFix | 정리된 테스트 |
 |------|---------|--------------|
-| 적절한 테스트 어노테이션 | ❌ 모든 곳에 @SpringBootTest | ✅ 레이어별 적절한 어노테이션 |
-| 테스트 메서드명 | ❌ test1, testPayment | ✅ @DisplayName으로 한글 설명 |
-| 논리적 그룹화 | ❌ 평면적 구조 | ✅ @Nested로 계층화 |
-| 매직 넘버 | ❌ 하드코딩된 숫자 | ✅ 상수로 의미 명확화 |
-| Given-When-Then | ❌ 구조 없음 | ✅ 명확한 구조 |
-| Assertion 메시지 | ❌ 없음 | ✅ as()로 실패 시 힌트 제공 |
-| 다양한 케이스 | ❌ 단일 케이스 | ✅ @ParameterizedTest |
-| 데이터 격리 | ❌ 테스트 간 영향 | ✅ @Transactional 롤백 |
+| 적절한 테스트 어노테이션 |  모든 곳에 @SpringBootTest | (권장) 레이어별 적절한 어노테이션 |
+| 테스트 메서드명 |  test1, testPayment | (권장) @DisplayName으로 한글 설명 |
+| 논리적 그룹화 |  평면적 구조 | (권장) @Nested로 계층화 |
+| 매직 넘버 |  하드코딩된 숫자 | (권장) 상수로 의미 명확화 |
+| Given-When-Then |  구조 없음 | (권장) 명확한 구조 |
+| Assertion 메시지 |  없음 | (권장) as()로 실패 시 힌트 제공 |
+| 다양한 케이스 |  단일 케이스 | (권장) @ParameterizedTest |
+| 데이터 격리 |  테스트 간 영향 | (권장) @Transactional 롤백 |
 
 ### 테스트 실행 방법
 
@@ -727,15 +768,14 @@ curl -X PATCH http://localhost:8080/api/payments/1/refund
 | 레이어 | 클래스 | 역할 |
 |--------|--------|------|
 | Controller | PaymentController | HTTP 요청/응답 처리 |
-| Service | PaymentService | 트랜잭션 관리, 비즈니스 흐름 조율 |
-| Domain | PaymentProcessor | 순수 비즈니스 로직 (금액 계산) |
+| Service | PaymentService | 트랜잭션 관리, 비즈니스 로직, 상태 변경 |
 | Repository | PaymentRepository | 데이터베이스 접근 |
-| Entity | Payment | DB 테이블 매핑 + 도메인 로직 |
+| Entity | Payment | DB 테이블 매핑 (데이터 홀더) |
 
 ### SOLID 원칙 적용
 
 | 원칙 | 적용 |
 |------|------|
-| SRP (단일 책임) | Service/Processor/Repository 역할 분리 |
+| SRP (단일 책임) | Service/Repository 역할 분리 |
 | OCP (개방-폐쇄) | 새 정책 추가 시 기존 코드 수정 불필요 |
 | DIP (의존성 역전) | 인터페이스(DiscountPolicy)에 의존 |

@@ -12,9 +12,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -65,7 +67,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 이 테스트에서는 @WebMvcTest가 스프링 컨텍스트를 사용하므로
  * @MockBean을 사용합니다.
  */
-@WebMvcTest(PaymentController.class)  // PaymentController만 테스트
+@SpringBootTest
+@AutoConfigureMockMvc
 @DisplayName("PaymentController 웹 레이어 테스트")
 class PaymentControllerTest {
 
@@ -109,7 +112,7 @@ class PaymentControllerTest {
     class CreatePaymentTest {
 
         @Test
-        @DisplayName("유효한 요청으로 결제를 생성하면 200 OK와 결제 결과를 반환한다")
+        @DisplayName("유효한 요청으로 결제를 생성하면 201 Created와 결제 결과를 반환한다")
         void shouldCreatePaymentSuccessfully() throws Exception {
             // Given - 요청 데이터
             PaymentRequest request = new PaymentRequest(ORIGINAL_PRICE, COUNTRY, true);
@@ -126,12 +129,12 @@ class PaymentControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andDo(print())  // 요청/응답 로그 출력
-                    .andExpect(status().isOk())
+                    .andExpect(status().isCreated())  // 201 Created
                     .andExpect(jsonPath("$.originalPrice").value(ORIGINAL_PRICE))
                     .andExpect(jsonPath("$.discountedAmount").value(DISCOUNTED_AMOUNT))
                     .andExpect(jsonPath("$.taxedAmount").value(TAXED_AMOUNT))
                     .andExpect(jsonPath("$.country").value(COUNTRY))
-                    .andExpect(jsonPath("$.vip").value(true));
+                    .andExpect(jsonPath("$.isVip").value(true));  // Record 필드명 그대로
 
             // Service 호출 검증
             then(paymentService)
@@ -154,8 +157,8 @@ class PaymentControllerTest {
             mockMvc.perform(post("/api/payments")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.vip").value(false))
+                    .andExpect(status().isCreated())  // 201 Created
+                    .andExpect(jsonPath("$.isVip").value(false))  // Record 필드명 그대로
                     .andExpect(jsonPath("$.discountedAmount").value(9000.0));
         }
 
@@ -174,7 +177,7 @@ class PaymentControllerTest {
             mockMvc.perform(post("/api/payments")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk())
+                    .andExpect(status().isCreated())  // 201 Created
                     .andExpect(jsonPath("$.country").value("US"))
                     .andExpect(jsonPath("$.taxedAmount").value(9095.0));
         }
@@ -256,7 +259,7 @@ class PaymentControllerTest {
     }
 
     @Nested
-    @DisplayName("GET /api/payments/status/{status} - 상태별 조회")
+    @DisplayName("GET /api/payments/status?status={status} - 상태별 조회")
     class GetPaymentsByStatusTest {
 
         @Test
@@ -270,8 +273,9 @@ class PaymentControllerTest {
             given(paymentService.getPaymentsByStatus(PaymentStatus.COMPLETED))
                     .willReturn(completedPayments);
 
-            // When & Then
-            mockMvc.perform(get("/api/payments/status/{status}", "COMPLETED"))
+            // When & Then - 쿼리 파라미터 방식
+            mockMvc.perform(get("/api/payments/status")
+                            .param("status", "COMPLETED"))
                     .andDo(print())
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$", hasSize(2)))
@@ -285,15 +289,16 @@ class PaymentControllerTest {
             given(paymentService.getPaymentsByStatus(PaymentStatus.PENDING))
                     .willReturn(List.of());
 
-            // When & Then
-            mockMvc.perform(get("/api/payments/status/{status}", "PENDING"))
+            // When & Then - 쿼리 파라미터 방식
+            mockMvc.perform(get("/api/payments/status")
+                            .param("status", "PENDING"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$", hasSize(0)));
         }
     }
 
     @Nested
-    @DisplayName("POST /api/payments/{id}/refund - 결제 환불")
+    @DisplayName("PATCH /api/payments/{id}/refund - 결제 환불")
     class RefundPaymentTest {
 
         @Test
@@ -309,8 +314,8 @@ class PaymentControllerTest {
             given(paymentService.refundPayment(PAYMENT_ID))
                     .willReturn(refundedPayment);
 
-            // When & Then
-            mockMvc.perform(post("/api/payments/{id}/refund", PAYMENT_ID))
+            // When & Then - PATCH 메서드 사용 (부분 수정)
+            mockMvc.perform(patch("/api/payments/{id}/refund", PAYMENT_ID))
                     .andDo(print())
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(PAYMENT_ID))
@@ -319,14 +324,14 @@ class PaymentControllerTest {
 
         @Test
         @DisplayName("존재하지 않는 결제 환불 시 예외가 발생한다")
-        void shouldReturn404ForNonExistentPaymentRefund() throws Exception {
+        void shouldReturn400ForNonExistentPaymentRefund() throws Exception {
             // Given
             Long nonExistentId = 9999L;
             given(paymentService.refundPayment(nonExistentId))
                     .willThrow(new IllegalArgumentException("결제를 찾을 수 없습니다"));
 
-            // When & Then
-            mockMvc.perform(post("/api/payments/{id}/refund", nonExistentId))
+            // When & Then - PATCH 메서드 사용
+            mockMvc.perform(patch("/api/payments/{id}/refund", nonExistentId))
                     .andExpect(status().isBadRequest());
         }
     }
