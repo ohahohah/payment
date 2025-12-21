@@ -1,13 +1,8 @@
 package com.example.payment_step1.domain.model;
 
-import com.example.payment_step1.domain.event.DomainEvent;
-import com.example.payment_step1.domain.event.PaymentCompletedEvent;
-import com.example.payment_step1.domain.event.PaymentRefundedEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -17,12 +12,11 @@ import static org.assertj.core.api.Assertions.*;
  * [테스트 포인트 - Rich Domain Model]
  * 1. 비즈니스 로직이 엔티티 내부에 있는지 확인
  * 2. 상태 전이 규칙 검증 (PENDING → COMPLETED → REFUNDED)
- * 3. 도메인 이벤트 발행 확인
- * 4. setter 없이 상태 변경이 메서드로만 가능한지 확인
+ * 3. setter 없이 상태 변경이 메서드로만 가능한지 확인
  *
  * [Anti-DDD와의 차이]
  * - Anti-DDD: payment.setStatus(COMPLETED) → 규칙 검증 없음
- * - DDD: payment.complete() → 규칙 검증 + 이벤트 발행
+ * - DDD: payment.complete() → 규칙 검증
  */
 @DisplayName("Payment Aggregate Root 테스트")
 class PaymentTest {
@@ -78,24 +72,6 @@ class PaymentTest {
 
             // Then
             assertThat(payment.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
-        }
-
-        @Test
-        @DisplayName("complete() 호출 시 PaymentCompletedEvent 발생")
-        void emitEventOnComplete() {
-            // Given
-            Payment payment = createSamplePayment();
-
-            // When
-            payment.complete();
-
-            // Then
-            List<DomainEvent> events = payment.getDomainEvents();
-            assertThat(events).hasSize(1);
-            assertThat(events.get(0)).isInstanceOf(PaymentCompletedEvent.class);
-
-            PaymentCompletedEvent event = (PaymentCompletedEvent) events.get(0);
-            assertThat(event.finalAmount()).isEqualTo(payment.getTaxedAmount());
         }
 
         @Test
@@ -165,30 +141,12 @@ class PaymentTest {
             // Given
             Payment payment = createSamplePayment();
             payment.complete();
-            payment.pullDomainEvents();  // 완료 이벤트 제거
 
             // When
             payment.refund();
 
             // Then
             assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
-        }
-
-        @Test
-        @DisplayName("refund() 호출 시 PaymentRefundedEvent 발생")
-        void emitEventOnRefund() {
-            // Given
-            Payment payment = createSamplePayment();
-            payment.complete();
-            payment.pullDomainEvents();
-
-            // When
-            payment.refund();
-
-            // Then
-            List<DomainEvent> events = payment.getDomainEvents();
-            assertThat(events).hasSize(1);
-            assertThat(events.get(0)).isInstanceOf(PaymentRefundedEvent.class);
         }
 
         @Test
@@ -227,42 +185,6 @@ class PaymentTest {
             // When & Then
             assertThatThrownBy(() -> payment.refund())
                     .isInstanceOf(IllegalStateException.class);
-        }
-    }
-
-    @Nested
-    @DisplayName("도메인 이벤트 관리 테스트")
-    class DomainEventTest {
-
-        @Test
-        @DisplayName("pullDomainEvents() 호출 시 이벤트 반환 및 초기화")
-        void pullEventsAndClear() {
-            // Given
-            Payment payment = createSamplePayment();
-            payment.complete();
-
-            // When
-            List<DomainEvent> events = payment.pullDomainEvents();
-            List<DomainEvent> eventsAgain = payment.pullDomainEvents();
-
-            // Then
-            assertThat(events).hasSize(1);
-            assertThat(eventsAgain).isEmpty();  // 두 번째 호출은 비어있음
-        }
-
-        @Test
-        @DisplayName("getDomainEvents()는 읽기 전용")
-        void getDomainEventsIsReadOnly() {
-            // Given
-            Payment payment = createSamplePayment();
-            payment.complete();
-
-            // When
-            List<DomainEvent> events = payment.getDomainEvents();
-
-            // Then - 수정 시도하면 예외
-            assertThatThrownBy(() -> events.clear())
-                    .isInstanceOf(UnsupportedOperationException.class);
         }
     }
 

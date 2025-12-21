@@ -8,7 +8,6 @@
 - Primitive 타입 → Value Object (Money, Country)
 - Anemic Entity → Rich Entity (Payment)
 - setter 기반 상태 변경 → 비즈니스 메서드 기반 상태 변경
-- 도메인 이벤트 도입
 
 ---
 
@@ -17,15 +16,11 @@
 ```
 com.example.payment_step1
 └── domain
-    ├── model
-    │   ├── PaymentStatus.java    # 결제 상태 열거형
-    │   ├── Money.java            # 금액 Value Object
-    │   ├── Country.java          # 국가 Value Object
-    │   └── Payment.java          # Aggregate Root (Rich Domain Model)
-    └── event
-        ├── DomainEvent.java           # 도메인 이벤트 인터페이스
-        ├── PaymentCompletedEvent.java # 결제 완료 이벤트
-        └── PaymentRefundedEvent.java  # 환불 이벤트
+    └── model
+        ├── PaymentStatus.java    # 결제 상태 열거형
+        ├── Money.java            # 금액 Value Object
+        ├── Country.java          # 국가 Value Object
+        └── Payment.java          # Aggregate Root (Rich Domain Model)
 ```
 
 ---
@@ -181,7 +176,6 @@ public class PaymentService {
 ```java
 public class Payment {
     private PaymentStatus status;
-    private final List<DomainEvent> domainEvents = new ArrayList<>();
 
     // setter 없음! 비즈니스 메서드로만 상태 변경
 
@@ -195,9 +189,6 @@ public class Payment {
         // 상태 변경
         this.status = PaymentStatus.COMPLETED;
         this.updatedAt = LocalDateTime.now();
-
-        // 도메인 이벤트 등록
-        registerEvent(new PaymentCompletedEvent(this.id, this.taxedAmount));
     }
 
     public void refund() {
@@ -207,7 +198,6 @@ public class Payment {
         }
 
         this.status = PaymentStatus.REFUNDED;
-        registerEvent(new PaymentRefundedEvent(this.id, this.taxedAmount));
     }
 }
 ```
@@ -216,7 +206,6 @@ public class Payment {
 - 도메인 규칙이 Entity 안에 캡슐화
 - 잘못된 상태 전이 불가능
 - 의미 있는 메서드명 (complete, refund)
-- 도메인 이벤트 자동 등록
 
 ---
 
@@ -240,35 +229,6 @@ public class Payment {
 - PENDING → FAILED (fail 호출)
 - COMPLETED → REFUNDED (refund 호출)
 - 그 외 전이는 모두 예외 발생!
-
----
-
-### 6. 도메인 이벤트
-
-```java
-// 도메인 이벤트 인터페이스
-public interface DomainEvent {
-    LocalDateTime occurredAt();
-}
-
-// 결제 완료 이벤트 - record로 불변 보장
-public record PaymentCompletedEvent(
-    Long paymentId,
-    Money finalAmount,
-    LocalDateTime occurredAt
-) implements DomainEvent {
-
-    public PaymentCompletedEvent(Long paymentId, Money finalAmount) {
-        this(paymentId, finalAmount, LocalDateTime.now());
-    }
-}
-```
-
-**도메인 이벤트 특징:**
-1. **과거형 이름**: "~Completed", "~Refunded"
-2. **불변 객체**: record 또는 final 필드
-3. **발생 시각 포함**: 언제 일어났는지 기록
-4. **Aggregate Root에서 등록**: Entity 내부에서 이벤트 생성
 
 ---
 
@@ -312,15 +272,17 @@ void cannotCompleteAlreadyCompleted() {
 }
 
 @Test
-@DisplayName("complete() 호출 시 PaymentCompletedEvent 발생")
-void emitEventOnComplete() {
+@DisplayName("정상 흐름: PENDING → COMPLETED → REFUNDED")
+void normalFlow() {
     Payment payment = createSamplePayment();
 
-    payment.complete();
+    assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
 
-    List<DomainEvent> events = payment.getDomainEvents();
-    assertThat(events).hasSize(1);
-    assertThat(events.get(0)).isInstanceOf(PaymentCompletedEvent.class);
+    payment.complete();
+    assertThat(payment.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
+
+    payment.refund();
+    assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
 }
 ```
 
@@ -344,18 +306,17 @@ void emitEventOnComplete() {
 | 상태 변경 | `setStatus()` | `complete()`, `refund()` |
 | 규칙 검증 | Service에서 | Entity에서 |
 | 불변성 | X (setter 존재) | O (setter 없음) |
-| 도메인 이벤트 | X | O |
 
 ---
 
 ## 다음 단계 (Step 2)
 
-Step 2에서는 Application Layer와 Infrastructure Layer를 추가합니다:
-- Repository 인터페이스와 구현체
-- Application Service
-- 이벤트 발행 처리
+Step 2에서는 도메인 이벤트를 추가합니다:
+- DomainEvent 인터페이스
+- PaymentCompletedEvent, PaymentRefundedEvent
+- Aggregate Root에서 이벤트 등록
 
-현재 Step 1에서는 도메인 모델만 변경했으며, 이것만으로도:
+현재 Step 1에서는 Value Object와 Rich Domain Model만 적용했으며, 이것만으로도:
 - 타입 안전성 확보
 - 비즈니스 규칙 캡슐화
 - 테스트 용이성 향상

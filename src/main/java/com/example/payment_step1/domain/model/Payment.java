@@ -1,13 +1,6 @@
 package com.example.payment_step1.domain.model;
 
-import com.example.payment_step1.domain.event.DomainEvent;
-import com.example.payment_step1.domain.event.PaymentCompletedEvent;
-import com.example.payment_step1.domain.event.PaymentRefundedEvent;
-
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Payment - 결제 Aggregate Root (Rich Domain Model)
@@ -55,7 +48,6 @@ import java.util.List;
  *       }
  *       this.status = PaymentStatus.COMPLETED;
  *       this.updatedAt = LocalDateTime.now();
- *       registerEvent(new PaymentCompletedEvent(...));
  *   }
  *
  * ============================================================================
@@ -78,9 +70,6 @@ public class Payment {
     private PaymentStatus status;
     private final LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-
-    // 도메인 이벤트 저장소
-    private final List<DomainEvent> domainEvents = new ArrayList<>();
 
     // ==========================================================================
     // 생성자 - private (팩토리 메서드 사용)
@@ -115,19 +104,6 @@ public class Payment {
         return new Payment(originalPrice, discountedAmount, taxedAmount, country, isVip);
     }
 
-    /**
-     * DB에서 복원용 팩토리 메서드 (Repository에서 사용)
-     */
-    public static Payment reconstitute(Long id, Money originalPrice, Money discountedAmount,
-                                        Money taxedAmount, Country country, boolean isVip,
-                                        PaymentStatus status, LocalDateTime createdAt,
-                                        LocalDateTime updatedAt) {
-        Payment payment = new Payment(originalPrice, discountedAmount, taxedAmount, country, isVip);
-        payment.id = id;
-        payment.status = status;
-        return payment;
-    }
-
     // ==========================================================================
     // 비즈니스 메서드 - 상태 변경은 여기서만!
     // ==========================================================================
@@ -138,11 +114,10 @@ public class Payment {
      * [Rich Domain Model의 핵심]
      * - 상태 변경 규칙이 엔티티 안에 캡슐화
      * - "대기 상태에서만 완료 가능" 규칙이 여기에!
-     * - 도메인 이벤트 자동 등록
      *
      * [Anti-DDD와의 차이]
      * - Anti-DDD: Service에서 payment.setStatus(COMPLETED) 호출
-     * - DDD: payment.complete() 호출 → 규칙 검증 + 상태 변경 + 이벤트 등록
+     * - DDD: payment.complete() 호출 → 규칙 검증 + 상태 변경
      */
     public void complete() {
         if (this.status != PaymentStatus.PENDING) {
@@ -152,9 +127,6 @@ public class Payment {
 
         this.status = PaymentStatus.COMPLETED;
         this.updatedAt = LocalDateTime.now();
-
-        // 도메인 이벤트 등록
-        registerEvent(new PaymentCompletedEvent(this.id, this.taxedAmount));
     }
 
     /**
@@ -185,34 +157,6 @@ public class Payment {
 
         this.status = PaymentStatus.REFUNDED;
         this.updatedAt = LocalDateTime.now();
-
-        // 도메인 이벤트 등록
-        registerEvent(new PaymentRefundedEvent(this.id, this.taxedAmount));
-    }
-
-    // ==========================================================================
-    // 도메인 이벤트 관리
-    // ==========================================================================
-
-    private void registerEvent(DomainEvent event) {
-        this.domainEvents.add(event);
-    }
-
-    /**
-     * 도메인 이벤트 반환 및 초기화
-     * Application Service에서 호출하여 이벤트 발행
-     */
-    public List<DomainEvent> pullDomainEvents() {
-        List<DomainEvent> events = new ArrayList<>(this.domainEvents);
-        this.domainEvents.clear();
-        return events;
-    }
-
-    /**
-     * 현재 등록된 이벤트 조회 (읽기 전용)
-     */
-    public List<DomainEvent> getDomainEvents() {
-        return Collections.unmodifiableList(domainEvents);
     }
 
     // ==========================================================================
@@ -253,16 +197,5 @@ public class Payment {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
-    }
-
-    /**
-     * ID 설정 (저장 후 Repository에서 호출)
-     * ID는 한 번만 할당 가능
-     */
-    public void assignId(Long id) {
-        if (this.id != null) {
-            throw new IllegalStateException("ID는 한 번만 할당할 수 있습니다");
-        }
-        this.id = id;
     }
 }
