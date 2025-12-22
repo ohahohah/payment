@@ -2,14 +2,14 @@
 
 ## 개요
 
-이 패키지(`com.example.payment_ul`)는 **유비쿼터스 랭귀지**를 적용한 결제 시스템입니다.
-`com.example.payment` 패키지의 안티패턴 네이밍을 도메인 용어로 변경하여 가독성과 의사소통을 개선했습니다.
+이 패키지(`com.example.payment_ul`)는 **유비쿼터스 랭귀지**를 적용한 결제 시스템.
+`com.example.payment` 패키지의 안티패턴 네이밍을 도메인 용어로 변경하여 가독성과 의사소통을 개선.
 
 ---
 
 ## 독립 실행
 
-이 패키지는 **독립적으로 실행 가능**합니다.
+이 패키지는 **독립적으로 실행 가능**.
 
 ```bash
 # 유비쿼터스 랭귀지 애플리케이션 실행
@@ -55,12 +55,11 @@ com.example.payment_ul/
 
 ---
 
-## 유비쿼터스 랭귀지란?
-
-- **도메인 전문가**와 **개발자**가 공통으로 사용하는 언어입니다
-- 코드, 문서, 대화에서 **같은 용어**를 사용합니다
-- 모호함을 줄이고 **의사소통을 명확**하게 합니다
-- **DDD(도메인 주도 설계)**의 핵심 개념입니다
+## 유비쿼터스 랭귀지
+- **도메인 전문가**와 **개발자**가 공통으로 사용하는 언어
+- 코드, 문서, 대화에서 **같은 용어**를 사용
+- 모호함을 줄이고 **의사소통을 명확**하게 함.
+- **DDD(도메인 주도 설계)**의 핵심 개념
 
 ---
 
@@ -97,6 +96,8 @@ com.example.payment_ul/
 | getList()       | getAllPayments()     | 전체 결제 조회    |
 | getListByStat() | getPaymentsByStatus()| 상태별 결제 조회  |
 | updateStatus()  | refundPayment()      | 결제 환불         |
+| getSum()        | getTotalAmount()     | 총액 조회         |
+| getRecent()     | getRecentPayments()  | 최근 결제 조회    |
 
 ### 4. 클래스명 (도메인 용어 적용)
 
@@ -182,11 +183,11 @@ com.example.payment_ul/
 
 ## 패키지 비교
 
-| 항목 | com.example.payment | com.example.payment_ul |
-|------|---------------------|------------------------|
-| 목적 | 연습문제 (패턴 용어) | 정답 (도메인 용어) |
+| 항목 | com.example.payment               | com.example.payment_ul |
+|------|-----------------------------------|-------------------|
+| 목적 | 원본                                | 도메인 용어 |
 | 클래스명 | DiscountStrategy, PaymentObserver | CustomerDiscountPolicy, PaymentCompletionHandler |
-| 필드명 | 축약어 (amt1, cd) | 명확한 이름 (originalPrice, country) |
-| 메서드명 | 모호함 (execute) | 비즈니스 용어 (processPayment) |
-| 상태값 | 코드 (P, C, R) | 의미 (PENDING, COMPLETED, REFUNDED) |
-| 독립 실행 | PaymentApplication | PaymentULApplication |
+| 필드명 | 축약어 (amt1, cd)                    | 명확한 이름 (originalPrice, country) |
+| 메서드명 | 모호함 (execute)                     | 비즈니스 용어 (processPayment) |
+| 상태값 | 코드 (P, C, R)                      | 의미 (PENDING, COMPLETED, REFUNDED) |
+| 독립 실행 | PaymentApplication                | PaymentULApplication |
