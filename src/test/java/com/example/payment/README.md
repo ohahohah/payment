@@ -64,8 +64,10 @@ src/test/java/com/example/payment/
 │   ├── policy/
 │   │   ├── DiscountPolicyTest.java
 │   │   └── TaxPolicyTest.java
-│   └── entity/
-│       └── PaymentEntityTest.java
+│   ├── entity/
+│   │   └── PaymentEntityTest.java
+│   └── service/
+│       └── PaymentServiceTest.java
 ├── integration/             # 슬라이스 테스트
 │   └── repository/
 │       └── PaymentRepositoryTest.java
@@ -233,44 +235,49 @@ class PaymentControllerTest {
 - `@SpringBootTest`: 전체 Application Context 로딩 (느림)
 - Service를 `@MockBean`으로 대체하면 `@WebMvcTest`로 충분
 
-### 3-8. @SpringBootTest에서 로직 검증 금지
+### 3-8. Service 테스트는 단위 테스트로
 
 ```java
-// BAD: 통합 테스트에서 구체적인 금액 검증
+// BAD: Service 테스트에 @SpringBootTest 사용
 @SpringBootTest
 class PaymentServiceIntegrationTest {
-    @Test
-    void shouldProcessAndSavePayment() {
-        PaymentResult result = paymentService.execute(request);
-
-        assertThat(result.amt2()).isEqualTo(8500);   // BAD: 할인 로직
-        assertThat(result.amt3()).isEqualTo(9350);   // BAD: 세금 로직
-    }
+    @Autowired
+    private PaymentService paymentService;
+    // 전체 Context 로딩 - 느림
 }
 
-// GOOD: DB 저장/상태 변경만 검증
-@SpringBootTest
-class PaymentServiceIntegrationTest {
-    @Test
-    void shouldProcessAndSavePayment() {
-        PaymentResult result = paymentService.execute(request);
+// GOOD: Mockito로 단위 테스트
+@ExtendWith(MockitoExtension.class)
+class PaymentServiceTest {
+    @Mock PaymentRepository repository;
+    @Mock DiscountStrategy discountStrategy;
+    @Mock TaxStrategy taxStrategy;
 
-        assertThat(result).isNotNull();              // OK: 결과 존재
-        assertThat(payments).hasSize(1);             // OK: DB 저장
-        assertThat(payment.getStat()).isEqualTo(C);  // OK: 상태 변경
+    private PaymentService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new PaymentService(repository, discountStrategy, ...);
+    }
+
+    @Test
+    void shouldApplyDiscountAndTax() {
+        given(discountStrategy.apply(10000, true)).willReturn(8500.0);
+        given(taxStrategy.apply(8500.0)).willReturn(9350.0);
+
+        // Service 로직만 검증
     }
 }
 ```
 
-**통합 테스트에서 검증할 것:**
-- DB 저장/조회가 동작하는가
-- 트랜잭션이 동작하는가
-- 상태 변경이 DB에 반영되는가
-- 전체 플로우가 연결되는가
+**Service 단위 테스트에서 검증할 것:**
+- 의존성(Repository, Strategy)이 올바르게 호출되는가
+- 비즈니스 로직 흐름이 맞는가
+- 예외 상황이 올바르게 처리되는가
 
-**단위 테스트에서 검증할 것:**
-- 구체적인 금액 계산 (8500, 9350 등)
-- 비즈니스 로직 (할인율, 세금율)
+**@SpringBootTest가 필요한 경우:**
+- E2E 테스트 (최소화)
+- 여러 서비스 간 연동 테스트
 
 ---
 
@@ -295,9 +302,9 @@ class PaymentServiceIntegrationTest {
 ## 5. 체크리스트
 
 - [ ] POJO 테스트에 `@SpringBootTest` 사용하지 않았는가?
+- [ ] Service 테스트에 Mockito를 사용했는가?
 - [ ] Controller 테스트에 `@WebMvcTest`를 사용했는가?
 - [ ] Repository 테스트에 `@DataJpaTest`를 사용했는가?
-- [ ] `@SpringBootTest`에서 구체적인 금액/로직 검증을 하지 않는가?
 - [ ] 매직 넘버 대신 상수를 사용했는가?
 - [ ] 테스트명이 무엇을 테스트하는지 설명하는가?
 - [ ] 관련 테스트가 `@Nested`로 그룹화되었는가?
@@ -314,6 +321,6 @@ class PaymentServiceIntegrationTest {
 | `unit/policy/DiscountPolicyTest.java` | 단위 테스트 예시 |
 | `unit/policy/TaxPolicyTest.java` | @Nested 활용 예시 |
 | `unit/entity/PaymentEntityTest.java` | 엔티티 단위 테스트 |
+| `unit/service/PaymentServiceTest.java` | Service 단위 테스트 (Mock 활용) |
 | `integration/repository/PaymentRepositoryTest.java` | @DataJpaTest 예시 |
-| `integration/service/PaymentServiceIntegrationTest.java` | @SpringBootTest 통합 테스트 |
 | `web/PaymentControllerTest.java` | @WebMvcTest 예시 |
