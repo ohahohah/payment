@@ -80,20 +80,20 @@ payment-processor/
 │   │   ├── PaymentResult.java           # 처리 결과 DTO (Record)
 │   │   └── PaymentResponse.java         # 응답 DTO (Record)
 │   │
-│   ├── policy/
+│   ├── strategy/
 │   │   ├── discount/
-│   │   │   ├── DiscountPolicy.java      # 할인 전략 인터페이스
-│   │   │   └── DefaultDiscountPolicy.java # @Component @Primary
+│   │   │   ├── DiscountStrategy.java      # 할인 전략 인터페이스
+│   │   │   └── DefaultDiscountStrategy.java # @Component @Primary
 │   │   │
 │   │   └── tax/
-│   │       ├── TaxPolicy.java           # 세금 전략 인터페이스
-│   │       ├── KoreaTaxPolicy.java      # @Component @Primary
-│   │       └── UsTaxPolicy.java         # @Component
+│   │       ├── TaxStrategy.java           # 세금 전략 인터페이스
+│   │       ├── KoreaTaxStrategy.java      # @Component @Primary
+│   │       └── UsTaxStrategy.java         # @Component
 │   │
-│   └── listener/
-│       ├── PaymentListener.java         # 옵저버 인터페이스
-│       ├── LoggingListener.java         # 로깅 옵저버 (@Component)
-│       └── SettlementListener.java      # 정산 옵저버 (@Component)
+│   └── observer/
+│       ├── PaymentObserver.java         # 옵저버 인터페이스
+│       ├── LoggingObserver.java         # 로깅 옵저버 (@Component)
+│       └── SettlementObserver.java      # 정산 옵저버 (@Component)
 │
 ├── src/main/resources/
 │   └── application.yml                  # 애플리케이션 설정 (DB, JPA 포함)
@@ -131,11 +131,11 @@ payment-processor/
            ┌───────┘              └───────┐
            ▼                              ▼
 ┌──────────────────────┐      ┌──────────────────────┐
-│  Repository Layer    │      │   Policy Layer       │
+│  Repository Layer    │      │   Strategy Layer     │
 │                      │      │  (전략 패턴)          │
 │  PaymentRepository   │      │                      │
-│  (Spring Data JPA)   │      │  DiscountPolicy      │
-│                      │      │  TaxPolicy           │
+│  (Spring Data JPA)   │      │  DiscountStrategy    │
+│                      │      │  TaxStrategy         │
 └──────────────────────┘      └──────────────────────┘
            │
            ▼
@@ -165,10 +165,10 @@ payment-processor/
             ▼
 3. PaymentService (모든 비즈니스 로직)
    ┌─────────────────────────────────────┐
-   │ 할인 정책 적용 (DiscountPolicy)      │
-   │ 세금 정책 적용 (TaxPolicy)           │
+   │ 할인 전략 적용 (DiscountStrategy)    │
+   │ 세금 전략 적용 (TaxStrategy)         │
    │ 엔티티 생성 및 상태 변경             │
-   │ 리스너 알림 (PaymentListener)        │
+   │ 옵저버 알림 (PaymentObserver)        │
    └─────────────────────────────────────┘
             │
             ▼
@@ -281,8 +281,8 @@ public class PaymentService {
     @Transactional  // 이 메서드를 트랜잭션으로 감싸기
     public PaymentResult processPayment(PaymentRequest request) {
         // 1. 할인/세금 계산 (비즈니스 로직)
-        double discounted = discountPolicy.apply(request.originalPrice(), request.isVip());
-        double taxed = taxPolicy.apply(discounted);
+        double discounted = discountStrategy.apply(request.originalPrice(), request.isVip());
+        double taxed = taxStrategy.apply(discounted);
 
         // 2. 엔티티 생성 및 저장
         Payment payment = Payment.create(...);
@@ -320,12 +320,12 @@ public class PaymentService {
 
 ```java
 // 인터페이스
-public interface DiscountPolicy {
+public interface DiscountStrategy {
     double apply(double originalPrice, boolean isVip);
 }
 
 // 구현체
-public class DefaultDiscountPolicy implements DiscountPolicy {
+public class DefaultDiscountStrategy implements DiscountStrategy {
     @Override
     public double apply(double originalPrice, boolean isVip) {
         return isVip ? originalPrice * 0.85 : originalPrice * 0.90;
@@ -337,14 +337,14 @@ public class DefaultDiscountPolicy implements DiscountPolicy {
 
 ```java
 // Observer 인터페이스
-public interface PaymentListener {
+public interface PaymentObserver {
     void onPaymentCompleted(PaymentResult result);
 }
 
 // Subject가 모든 Observer에게 알림
-// 스프링이 List<PaymentListener>를 자동으로 수집하여 주입
-for (PaymentListener listener : listeners) {
-    listener.onPaymentCompleted(result);
+// 스프링이 List<PaymentObserver>를 자동으로 수집하여 주입
+for (PaymentObserver observer : observers) {
+    observer.onPaymentCompleted(result);
 }
 ```
 
@@ -376,10 +376,10 @@ for (PaymentListener listener : listeners) {
 // 클래스에 직접 어노테이션을 붙이면 자동으로 빈 등록
 @Component
 @Primary  // 같은 타입의 빈이 여러 개일 때 기본 선택
-public class DefaultDiscountPolicy implements DiscountPolicy { ... }
+public class DefaultDiscountStrategy implements DiscountStrategy { ... }
 
 @Component
-public class LoggingListener implements PaymentListener { ... }
+public class LoggingObserver implements PaymentObserver { ... }
 ```
 
 **장점:**
@@ -403,10 +403,10 @@ public class PaymentConfig {
 **3. List<T> 자동 수집**
 ```java
 @Service
-public class PaymentProcessor {
-    // 스프링이 PaymentListener 타입의 모든 빈을 자동으로 수집하여 주입
-    public PaymentProcessor(List<PaymentListener> listeners) {
-        this.listeners = listeners;  // LoggingListener, SettlementListener 자동 수집
+public class PaymentService {
+    // 스프링이 PaymentObserver 타입의 모든 빈을 자동으로 수집하여 주입
+    public PaymentService(List<PaymentObserver> observers) {
+        this.observers = observers;  // LoggingObserver, SettlementObserver 자동 수집
     }
 }
 ```
@@ -501,8 +501,8 @@ class MessyPaymentTest {
 
 ```java
 // 스프링 컨텍스트 없이 순수 Java 테스트
-@DisplayName("할인 정책 단위 테스트")
-class DiscountPolicyTest {
+@DisplayName("할인 전략 단위 테스트")
+class DiscountStrategyTest {
 
     private static final double VIP_DISCOUNT_RATE = 0.15;  // 상수로 의미 명확화
 
@@ -514,10 +514,10 @@ class DiscountPolicyTest {
         @CsvSource({"10000, 8500", "20000, 17000"})
         void shouldCalculateCorrectVipDiscount(double original, double expected) {
             // Given
-            DiscountPolicy policy = new DefaultDiscountPolicy();
+            DiscountStrategy strategy = new DefaultDiscountStrategy();
 
             // When
-            double discounted = policy.apply(original, true);
+            double discounted = strategy.apply(original, true);
 
             // Then
             assertThat(discounted)
@@ -777,5 +777,5 @@ curl -X PATCH http://localhost:8080/api/payments/1/refund
 | 원칙 | 적용 |
 |------|------|
 | SRP (단일 책임) | Service/Repository 역할 분리 |
-| OCP (개방-폐쇄) | 새 정책 추가 시 기존 코드 수정 불필요 |
-| DIP (의존성 역전) | 인터페이스(DiscountPolicy)에 의존 |
+| OCP (개방-폐쇄) | 새 전략 추가 시 기존 코드 수정 불필요 |
+| DIP (의존성 역전) | 인터페이스(DiscountStrategy)에 의존 |
