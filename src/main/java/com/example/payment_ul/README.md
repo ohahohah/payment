@@ -25,32 +25,32 @@
 
 ```
 com.example.payment_ul/
-├── PaymentULApplication.java       # 독립 실행 가능한 메인 클래스
+├── PaymentULApplication.java          # 독립 실행 가능한 메인 클래스
 ├── entity/
-│   ├── Payment.java               # 결제 엔티티
-│   └── PaymentStatus.java         # 결제 상태 Enum
+│   ├── Payment.java                   # 결제 엔티티
+│   └── PaymentStatus.java             # 결제 상태 Enum
 ├── dto/
-│   ├── PaymentRequest.java        # 요청 DTO
-│   ├── PaymentResult.java         # 결과 DTO
-│   └── PaymentResponse.java       # 응답 DTO
+│   ├── PaymentRequest.java            # 요청 DTO
+│   ├── PaymentResult.java             # 결과 DTO
+│   └── PaymentResponse.java           # 응답 DTO
 ├── repository/
-│   └── PaymentRepository.java     # 저장소
+│   └── PaymentRepository.java         # 저장소
 ├── service/
-│   └── PaymentService.java        # 서비스
+│   └── PaymentService.java            # 서비스
 ├── controller/
-│   └── PaymentController.java     # 컨트롤러
-├── listener/
-│   ├── PaymentListener.java       # 리스너 인터페이스
-│   ├── LoggingListener.java       # 로깅 리스너
-│   └── SettlementListener.java    # 정산 리스너
+│   └── PaymentController.java         # 컨트롤러
+├── handler/
+│   ├── PaymentCompletionHandler.java  # 결제 완료 처리기 인터페이스
+│   ├── PaymentAuditLogger.java        # 결제 감사 로그 기록기
+│   └── SettlementRequestHandler.java  # 정산 요청 처리기
 └── policy/
     ├── discount/
-    │   ├── DiscountPolicy.java
-    │   └── DefaultDiscountPolicy.java
+    │   ├── CustomerDiscountPolicy.java  # 고객 할인 정책 인터페이스
+    │   └── VipDiscountPolicy.java       # VIP 할인 정책
     └── tax/
-        ├── TaxPolicy.java
-        ├── KoreaTaxPolicy.java
-        └── UsTaxPolicy.java
+        ├── TaxPolicy.java               # 세금 정책 인터페이스
+        ├── KoreaVatPolicy.java          # 한국 부가세 정책
+        └── UsSalesTaxPolicy.java        # 미국 판매세 정책
 ```
 
 ---
@@ -97,6 +97,31 @@ com.example.payment_ul/
 | getList()       | getAllPayments()     | 전체 결제 조회    |
 | getListByStat() | getPaymentsByStatus()| 상태별 결제 조회  |
 | updateStatus()  | refundPayment()      | 결제 환불         |
+
+### 4. 클래스명 (도메인 용어 적용)
+
+#### 할인 정책
+
+| 변경 전 (패턴 용어) | 변경 후 (도메인 용어) | 설명 |
+|---------------------|----------------------|------|
+| DiscountStrategy | CustomerDiscountPolicy | 고객 할인 정책 인터페이스 |
+| DefaultDiscountStrategy | VipDiscountPolicy | VIP/일반 고객별 할인 정책 |
+
+#### 세금 정책
+
+| 변경 전 (패턴 용어) | 변경 후 (도메인 용어) | 설명 |
+|---------------------|----------------------|------|
+| TaxStrategy | TaxPolicy | 세금 정책 인터페이스 |
+| KoreaTaxStrategy | KoreaVatPolicy | 한국 부가가치세 정책 (10%) |
+| UsTaxStrategy | UsSalesTaxPolicy | 미국 판매세 정책 (7%) |
+
+#### 결제 완료 처리
+
+| 변경 전 (패턴 용어) | 변경 후 (도메인 용어) | 설명 |
+|---------------------|----------------------|------|
+| PaymentObserver | PaymentCompletionHandler | 결제 완료 처리기 인터페이스 |
+| LoggingObserver | PaymentAuditLogger | 결제 감사 로그 기록기 |
+| SettlementObserver | SettlementRequestHandler | 정산 요청 처리기 |
 
 ---
 
@@ -159,9 +184,9 @@ com.example.payment_ul/
 
 | 항목 | com.example.payment | com.example.payment_ul |
 |------|---------------------|------------------------|
-| 목적 | 안티패턴 학습용     | 유비쿼터스 랭귀지 적용 |
-| 필드명 | 축약어 (amt1, cd)  | 명확한 이름 (originalPrice, country) |
+| 목적 | 연습문제 (패턴 용어) | 정답 (도메인 용어) |
+| 클래스명 | DiscountStrategy, PaymentObserver | CustomerDiscountPolicy, PaymentCompletionHandler |
+| 필드명 | 축약어 (amt1, cd) | 명확한 이름 (originalPrice, country) |
 | 메서드명 | 모호함 (execute) | 비즈니스 용어 (processPayment) |
-| 상태값 | 코드 (P, C, R)    | 의미 (PENDING, COMPLETED, REFUNDED) |
-| 독립 실행 | 기본 애플리케이션 | 독립 Application 클래스 보유 |
-| Qualifier | 불필요 | 불필요 (독립 패키지) |
+| 상태값 | 코드 (P, C, R) | 의미 (PENDING, COMPLETED, REFUNDED) |
+| 독립 실행 | PaymentApplication | PaymentULApplication |
