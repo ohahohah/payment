@@ -12,11 +12,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -46,8 +44,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * [왜 @WebMvcTest를 사용하나요?]
  * 1. 컨트롤러 로직만 격리하여 테스트
  * 2. HTTP 요청/응답 검증에 집중
- * 3. @SpringBootTest보다 훨씬 가벼움 (빠른 테스트)
- * 4. Service 계층은 Mock으로 대체하여 독립적 테스트
+ * 3. 전체 Context 대신 웹 레이어만 로딩 (빠른 테스트)
+ * 4. Service 계층은 @MockBean으로 대체하여 독립적 테스트
  *
  * [슬라이스 테스트 비교]
  * - @WebMvcTest: Controller 레이어 (이 테스트)
@@ -67,8 +65,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 이 테스트에서는 @WebMvcTest가 스프링 컨텍스트를 사용하므로
  * @MockBean을 사용합니다.
  */
-@SpringBootTest
-@AutoConfigureMockMvc
+@WebMvcTest(PaymentController.class)
 @DisplayName("PaymentController 웹 레이어 테스트")
 class PaymentControllerTest {
 
