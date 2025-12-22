@@ -1,6 +1,6 @@
 package com.example.payment_ddd.integration;
 
-import com.example.payment.PaymentApplication;
+import com.example.payment_ddd.PaymentDddApplication;
 import com.example.payment_ddd.application.command.CreatePaymentCommand;
 import com.example.payment_ddd.application.command.RefundPaymentCommand;
 import com.example.payment_ddd.application.service.PaymentCommandService;
@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.*;
  * - 실제 DB 사용 (H2 인메모리)
  * - 전체 흐름 검증
  */
-@SpringBootTest(classes = PaymentApplication.class)
+@SpringBootTest(classes = PaymentDddApplication.class)
 @Transactional
 @DisplayName("DDD 결제 시스템 통합 테스트")
 class PaymentDddIntegrationTest {

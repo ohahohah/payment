@@ -90,7 +90,7 @@ class PaymentRepositoryTest {
         void shouldFindById() {
             // Given - TestEntityManager로 직접 저장
             Payment payment = createTestPayment();
-            payment.setStatus(PaymentStatus.COMPLETED);
+            payment.setStat(PaymentStatus.C);
             Payment saved = entityManager.persistAndFlush(payment);
 
             // 영속성 컨텍스트 초기화 (1차 캐시 제거)
@@ -102,8 +102,8 @@ class PaymentRepositoryTest {
 
             // Then
             assertThat(found.getId()).isEqualTo(saved.getId());
-            assertThat(found.getOriginalPrice()).isEqualTo(10000.0);
-            assertThat(found.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
+            assertThat(found.getAmt1()).isEqualTo(10000.0);
+            assertThat(found.getStat()).isEqualTo(PaymentStatus.C);
         }
 
         @Test
@@ -122,7 +122,7 @@ class PaymentRepositoryTest {
             // Then
             assertThat(payments)
                     .hasSize(2)
-                    .extracting(Payment::getOriginalPrice)
+                    .extracting(Payment::getAmt1)
                     .containsExactlyInAnyOrder(10000.0, 20000.0);
         }
 
@@ -162,17 +162,17 @@ class PaymentRepositoryTest {
             entityManager.clear();
 
             // When
-            List<Payment> completedPayments = paymentRepository.findByStatus(PaymentStatus.COMPLETED);
-            List<Payment> pendingPayments = paymentRepository.findByStatus(PaymentStatus.PENDING);
+            List<Payment> completedPayments = paymentRepository.findByStat(PaymentStatus.C);
+            List<Payment> pendingPayments = paymentRepository.findByStat(PaymentStatus.P);
 
             // Then
             assertThat(completedPayments)
                     .hasSize(2)
-                    .allMatch(p -> p.getStatus() == PaymentStatus.COMPLETED);
+                    .allMatch(p -> p.getStat() == PaymentStatus.C);
 
             assertThat(pendingPayments)
                     .hasSize(1)
-                    .allMatch(p -> p.getStatus() == PaymentStatus.PENDING);
+                    .allMatch(p -> p.getStat() == PaymentStatus.P);
         }
 
         @Test
@@ -189,8 +189,8 @@ class PaymentRepositoryTest {
             entityManager.clear();
 
             // When
-            List<Payment> krPayments = paymentRepository.findByCountry("KR");
-            List<Payment> usPayments = paymentRepository.findByCountry("US");
+            List<Payment> krPayments = paymentRepository.findByCd("KR");
+            List<Payment> usPayments = paymentRepository.findByCd("US");
 
             // Then
             assertThat(krPayments).hasSize(2);
@@ -211,12 +211,12 @@ class PaymentRepositoryTest {
             entityManager.clear();
 
             // When - 10000 이상인 결제 조회
-            List<Payment> largePayments = paymentRepository.findByTaxedAmountGreaterThan(10000.0);
+            List<Payment> largePayments = paymentRepository.findByAmt3GreaterThan(10000.0);
 
             // Then
             assertThat(largePayments)
                     .hasSize(1)
-                    .allMatch(p -> p.getTaxedAmount() > 10000);
+                    .allMatch(p -> p.getAmt3() > 10000);
         }
     }
 
@@ -234,8 +234,8 @@ class PaymentRepositoryTest {
             entityManager.clear();
 
             // When
-            long krCount = paymentRepository.countByCountry("KR");
-            long usCount = paymentRepository.countByCountry("US");
+            long krCount = paymentRepository.countByCd("KR");
+            long usCount = paymentRepository.countByCd("US");
 
             // Then
             assertThat(krCount).isEqualTo(2);
@@ -254,11 +254,11 @@ class PaymentRepositoryTest {
             entityManager.clear();
 
             // When
-            Double totalAmount = paymentRepository.sumTaxedAmountByStatus(PaymentStatus.COMPLETED);
+            Double totalAmount = paymentRepository.sumAmt3ByStat(PaymentStatus.C);
 
             // Then
             assertThat(totalAmount)
-                    .as("COMPLETED 상태 결제의 총액")
+                    .as("C(완료) 상태 결제의 총액")
                     .isEqualTo(9350.0 + 18700.0);  // 28050
         }
 
@@ -268,7 +268,7 @@ class PaymentRepositoryTest {
             // Given - 결제 없음
 
             // When
-            Double totalAmount = paymentRepository.sumTaxedAmountByStatus(PaymentStatus.COMPLETED);
+            Double totalAmount = paymentRepository.sumAmt3ByStat(PaymentStatus.C);
 
             // Then
             assertThat(totalAmount)
@@ -295,7 +295,7 @@ class PaymentRepositoryTest {
             entityManager.clear();
 
             // When
-            List<Payment> recentPayments = paymentRepository.findRecentPayments(2);
+            List<Payment> recentPayments = paymentRepository.findRecent(2);
 
             // Then
             assertThat(recentPayments)
@@ -324,7 +324,7 @@ class PaymentRepositoryTest {
 
     private Payment createCompletedPayment(double originalPrice) {
         Payment payment = createTestPayment(originalPrice);
-        payment.setStatus(PaymentStatus.COMPLETED);
+        payment.setStat(PaymentStatus.C);
         return payment;
     }
 }

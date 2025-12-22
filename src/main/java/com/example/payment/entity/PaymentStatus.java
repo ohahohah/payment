@@ -2,77 +2,55 @@ package com.example.payment.entity;
 
 /**
  * ====================================================================
- * PaymentStatus - 결제 상태 열거형 (Enum)
+ * PaymentStatus - 결제 상태 Enum
  * ====================================================================
  *
- * [Enum(열거형)이란?]
- * - 관련된 상수들을 묶어서 정의하는 특별한 클래스입니다
- * - 타입 안전성을 보장합니다 (잘못된 값 입력 방지)
- * - 가독성이 좋고 IDE 자동완성 지원
+ * [Enum이란?]
+ * - 열거형(Enumeration)으로, 정해진 값만 가질 수 있는 타입입니다
+ * - 상수들의 집합을 타입 안전(Type-Safe)하게 정의합니다
+ * - 문자열("PENDING")보다 오타 방지에 유리합니다
  *
- * [왜 String 대신 Enum을 사용하나요?]
- * - String: "PENDING", "pending", "Pending" 등 실수 가능
- * - Enum: PaymentStatus.PENDING 만 허용 (컴파일 타임 검증)
+ * [Enum 사용의 장점]
+ * 1. 컴파일 타임에 유효성 검증
+ * 2. IDE 자동완성 지원
+ * 3. switch 문에서 모든 케이스 검증 가능
+ * 4. 값 추가/삭제 시 컴파일 에러로 누락 방지
  *
- * [현업에서의 활용]
- * - 주문 상태: ORDERED, SHIPPING, DELIVERED, CANCELLED
- * - 결제 상태: PENDING, COMPLETED, FAILED, REFUNDED
- * - 회원 등급: BRONZE, SILVER, GOLD, VIP
+ * [JPA에서 Enum 사용]
+ * - @Enumerated(EnumType.STRING): 이름으로 저장 권장
+ * - @Enumerated(EnumType.ORDINAL): 순서로 저장 비권장
  *
- * [JPA와 Enum]
- * - @Enumerated(EnumType.STRING): DB에 문자열로 저장 (권장)
- * - @Enumerated(EnumType.ORDINAL): DB에 순서(0,1,2...)로 저장 (비권장)
- *   - ORDINAL은 Enum 순서 변경 시 데이터가 꼬일 수 있습니다
+ * [상태 흐름]
+ * P(대기) → C(완료) → R(환불)
+ *         ↘ F(실패)
  */
 public enum PaymentStatus {
 
     /**
-     * 결제 대기 중
-     * - 결제 요청은 받았으나 아직 처리되지 않은 상태
+     * 결제 대기 상태 (Pending)
+     * - 결제가 생성되었지만 아직 처리되지 않은 상태
+     * - 결제 요청 직후의 초기 상태
      */
-    PENDING("대기"),
+    P,      // 결제 대기 (Pending)
 
     /**
-     * 결제 완료
-     * - 정상적으로 결제가 처리된 상태
+     * 결제 완료 상태 (Completed)
+     * - 결제가 성공적으로 처리된 상태
+     * - 할인/세금 적용 후 최종 금액이 확정됨
      */
-    COMPLETED("완료"),
+    C,      // 결제 완료 (Completed)
 
     /**
-     * 결제 실패
+     * 결제 실패 상태 (Failed)
      * - 결제 처리 중 오류가 발생한 상태
+     * - 카드 한도 초과, 네트워크 오류 등
      */
-    FAILED("실패"),
+    F,      // 결제 실패 (Failed)
 
     /**
-     * 환불 완료
-     * - 결제가 취소되어 환불된 상태
+     * 환불 완료 상태 (Refunded)
+     * - 완료된 결제가 취소/환불된 상태
+     * - 고객 요청 또는 상품 반품으로 인한 환불
      */
-    REFUNDED("환불");
-
-    /**
-     * 한글 설명
-     * - Enum에 추가 정보를 담을 수 있습니다
-     */
-    private final String description;
-
-    /**
-     * Enum 생성자
-     * - Enum 생성자는 항상 private입니다 (생략 가능)
-     * - 외부에서 new PaymentStatus()로 생성할 수 없습니다
-     *
-     * @param description 상태 설명
-     */
-    PaymentStatus(String description) {
-        this.description = description;
-    }
-
-    /**
-     * 상태 설명 반환
-     *
-     * @return 한글 설명
-     */
-    public String getDescription() {
-        return description;
-    }
+    R       // 환불 완료 (Refunded)
 }

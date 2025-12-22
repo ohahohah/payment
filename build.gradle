@@ -32,3 +32,47 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+// ============================================================================
+// 다중 애플리케이션 실행 설정
+// ============================================================================
+//
+// [기본 애플리케이션] - payment 패키지
+// ./gradlew bootRun
+//
+// [유비쿼터스 랭귀지 애플리케이션] - payment_ul 패키지
+// ./gradlew bootRun -PmainClass=com.example.payment_ul.PaymentULApplication
+//
+// [DDD 애플리케이션] - payment_ddd 패키지
+// ./gradlew bootRun -PmainClass=com.example.payment_ddd.PaymentDddApplication
+//
+// ============================================================================
+
+springBoot {
+    // 기본 메인 클래스 설정
+    mainClass = project.hasProperty('mainClass')
+        ? project.property('mainClass')
+        : 'com.example.payment.PaymentApplication'
+}
+
+// 각 애플리케이션별 실행 태스크 정의
+tasks.register('runPayment', JavaExec) {
+    description = '기본 결제 시스템 실행 (com.example.payment)'
+    group = 'application'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.example.payment.PaymentApplication'
+}
+
+tasks.register('runPaymentUL', JavaExec) {
+    description = '유비쿼터스 랭귀지 결제 시스템 실행 (com.example.payment_ul)'
+    group = 'application'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.example.payment_ul.PaymentULApplication'
+}
+
+tasks.register('runPaymentDdd', JavaExec) {
+    description = 'DDD 결제 시스템 실행 (com.example.payment_ddd)'
+    group = 'application'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.example.payment_ddd.PaymentDddApplication'
+}

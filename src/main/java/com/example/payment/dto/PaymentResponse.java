@@ -7,82 +7,68 @@ import java.time.LocalDateTime;
 
 /**
  * ====================================================================
- * PaymentResponse - 결제 응답 DTO
+ * PaymentResponse - 결제 조회 응답 DTO
  * ====================================================================
  *
- * [응답 DTO의 역할]
- * - 클라이언트에게 반환할 데이터를 담는 객체입니다
- * - 엔티티를 직접 반환하지 않고 DTO로 변환하여 반환합니다
+ * [이 DTO의 역할]
+ * - 결제 조회 API의 응답 데이터
+ * - Payment 엔티티의 정보를 클라이언트에게 전달
+ * - 엔티티 직접 노출 대신 DTO 사용 (캡슐화)
  *
- * [왜 엔티티를 직접 반환하지 않나요?]
- * 1. 캡슐화: 엔티티의 내부 구조가 API에 노출되지 않음
- * 2. 유연성: 엔티티 변경이 API 스펙에 영향을 주지 않음
- * 3. 보안: 민감한 필드(비밀번호 등)를 제외하고 필요한 것만 노출
- * 4. 순환 참조 방지: JPA 연관 관계로 인한 무한 루프 방지
- * 5. 버전 관리: API 버전별로 다른 응답 형식 지원 가능
+ * [엔티티 vs DTO]
+ * - 엔티티: DB 테이블과 매핑, 내부 구조
+ * - DTO: API 스펙, 외부 인터페이스
+ * - 분리 이유: API 변경이 DB 구조에 영향 주지 않도록
  *
- * [Record로 DTO 정의]
- * - 불변 객체로 스레드 안전
- * - 간결한 코드
- * - JSON 직렬화/역직렬화 자동 지원
+ * [정적 팩토리 메서드 from()]
+ * - 엔티티 → DTO 변환을 담당합니다
+ * - 변환 로직을 한 곳에서 관리할 수 있습니다
+ * - 네이밍 관례: from(원본), of(여러 파라미터)
  *
- * @param id 결제 ID
- * @param originalPrice 원래 가격
- * @param discountedAmount 할인 후 금액
- * @param taxedAmount 세금 포함 최종 금액
- * @param country 국가 코드
- * @param isVip VIP 여부
- * @param status 결제 상태
- * @param statusDescription 상태 설명 (한글)
- * @param createdAt 생성 일시
- * @param updatedAt 수정 일시
+ * @param id 결제 ID - DB 자동 생성 식별자
+ * @param amt1 원래 가격 (Original Price)
+ * @param amt2 할인 후 금액 (Discounted Amount)
+ * @param amt3 세금 후 금액 (Taxed Amount)
+ * @param cd 국가 코드 (Country Code)
+ * @param flag VIP 여부 (isVip)
+ * @param stat 결제 상태 (Status) - P, C, F, R
+ * @param cdt 생성 일시 (Created DateTime)
+ * @param udt 수정 일시 (Updated DateTime)
  */
 public record PaymentResponse(
         Long id,
-        Double originalPrice,
-        Double discountedAmount,
-        Double taxedAmount,
-        String country,
-        Boolean isVip,
-        PaymentStatus status,
-        String statusDescription,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        Double amt1,        // 원래 가격
+        Double amt2,        // 할인 후 금액
+        Double amt3,        // 세금 후 금액
+        String cd,          // 국가 코드
+        Boolean flag,       // VIP 여부
+        PaymentStatus stat, // 결제 상태
+        LocalDateTime cdt,  // 생성 일시
+        LocalDateTime udt   // 수정 일시
 ) {
 
     /**
-     * 엔티티 → DTO 변환 정적 팩토리 메서드
+     * [엔티티 → DTO 변환 메서드]
      *
      * [정적 팩토리 메서드 패턴]
-     * - from: 다른 타입에서 변환하여 생성할 때 사용하는 관례적 이름
-     * - of: 여러 파라미터로 생성할 때
-     * - valueOf: 기본 타입을 객체로 변환할 때
-     *
-     * [변환 로직을 DTO에 두는 이유]
-     * - 변환 로직이 한 곳에 집중됨 (응집도 향상)
-     * - 테스트하기 쉬움
-     * - Controller가 단순해짐
-     *
-     * [메서드 참조로 사용 가능]
-     * payments.stream()
-     *         .map(PaymentResponse::from)  // 이렇게 사용
-     *         .toList();
+     * - 생성자 대신 의미있는 이름의 메서드 사용
+     * - from: 하나의 매개변수로부터 변환
+     * - of: 여러 매개변수를 조합
      *
      * @param payment 변환할 Payment 엔티티
-     * @return 변환된 PaymentResponse DTO
+     * @return PaymentResponse DTO
      */
     public static PaymentResponse from(Payment payment) {
         return new PaymentResponse(
                 payment.getId(),
-                payment.getOriginalPrice(),
-                payment.getDiscountedAmount(),
-                payment.getTaxedAmount(),
-                payment.getCountry(),
-                payment.getIsVip(),
-                payment.getStatus(),
-                payment.getStatus().getDescription(),  // Enum의 description 필드 활용
-                payment.getCreatedAt(),
-                payment.getUpdatedAt()
+                payment.getAmt1(),
+                payment.getAmt2(),
+                payment.getAmt3(),
+                payment.getCd(),
+                payment.getFlag(),
+                payment.getStat(),
+                payment.getCdt(),
+                payment.getUdt()
         );
     }
 }

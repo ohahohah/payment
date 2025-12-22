@@ -121,7 +121,7 @@ class PaymentControllerTest {
             PaymentResult mockResult = new PaymentResult(
                     ORIGINAL_PRICE, DISCOUNTED_AMOUNT, TAXED_AMOUNT, COUNTRY, true
             );
-            given(paymentService.processPayment(any(PaymentRequest.class)))
+            given(paymentService.execute(any(PaymentRequest.class)))
                     .willReturn(mockResult);
 
             // When & Then
@@ -130,16 +130,16 @@ class PaymentControllerTest {
                             .content(objectMapper.writeValueAsString(request)))
                     .andDo(print())  // 요청/응답 로그 출력
                     .andExpect(status().isCreated())  // 201 Created
-                    .andExpect(jsonPath("$.originalPrice").value(ORIGINAL_PRICE))
-                    .andExpect(jsonPath("$.discountedAmount").value(DISCOUNTED_AMOUNT))
-                    .andExpect(jsonPath("$.taxedAmount").value(TAXED_AMOUNT))
-                    .andExpect(jsonPath("$.country").value(COUNTRY))
-                    .andExpect(jsonPath("$.isVip").value(true));  // Record 필드명 그대로
+                    .andExpect(jsonPath("$.amt1").value(ORIGINAL_PRICE))
+                    .andExpect(jsonPath("$.amt2").value(DISCOUNTED_AMOUNT))
+                    .andExpect(jsonPath("$.amt3").value(TAXED_AMOUNT))
+                    .andExpect(jsonPath("$.cd").value(COUNTRY))
+                    .andExpect(jsonPath("$.flag").value(true));
 
             // Service 호출 검증
             then(paymentService)
                     .should(times(1))
-                    .processPayment(any(PaymentRequest.class));
+                    .execute(any(PaymentRequest.class));
         }
 
         @Test
@@ -150,7 +150,7 @@ class PaymentControllerTest {
             PaymentResult mockResult = new PaymentResult(
                     ORIGINAL_PRICE, 9000.0, 9900.0, COUNTRY, false
             );
-            given(paymentService.processPayment(any(PaymentRequest.class)))
+            given(paymentService.execute(any(PaymentRequest.class)))
                     .willReturn(mockResult);
 
             // When & Then
@@ -158,8 +158,8 @@ class PaymentControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isCreated())  // 201 Created
-                    .andExpect(jsonPath("$.isVip").value(false))  // Record 필드명 그대로
-                    .andExpect(jsonPath("$.discountedAmount").value(9000.0));
+                    .andExpect(jsonPath("$.flag").value(false))
+                    .andExpect(jsonPath("$.amt2").value(9000.0));
         }
 
         @Test
@@ -170,7 +170,7 @@ class PaymentControllerTest {
             PaymentResult mockResult = new PaymentResult(
                     ORIGINAL_PRICE, DISCOUNTED_AMOUNT, 9095.0, "US", true
             );
-            given(paymentService.processPayment(any(PaymentRequest.class)))
+            given(paymentService.execute(any(PaymentRequest.class)))
                     .willReturn(mockResult);
 
             // When & Then
@@ -178,8 +178,8 @@ class PaymentControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isCreated())  // 201 Created
-                    .andExpect(jsonPath("$.country").value("US"))
-                    .andExpect(jsonPath("$.taxedAmount").value(9095.0));
+                    .andExpect(jsonPath("$.cd").value("US"))
+                    .andExpect(jsonPath("$.amt3").value(9095.0));
         }
     }
 
@@ -192,7 +192,7 @@ class PaymentControllerTest {
         void shouldGetPaymentById() throws Exception {
             // Given
             Payment mockPayment = createMockPayment(PAYMENT_ID);
-            given(paymentService.getPayment(PAYMENT_ID))
+            given(paymentService.getData(PAYMENT_ID))
                     .willReturn(mockPayment);
 
             // When & Then
@@ -200,8 +200,8 @@ class PaymentControllerTest {
                     .andDo(print())
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(PAYMENT_ID))
-                    .andExpect(jsonPath("$.originalPrice").value(ORIGINAL_PRICE))
-                    .andExpect(jsonPath("$.status").value("COMPLETED"));
+                    .andExpect(jsonPath("$.amt1").value(ORIGINAL_PRICE))
+                    .andExpect(jsonPath("$.stat").value("C"));
         }
 
         @Test
@@ -209,7 +209,7 @@ class PaymentControllerTest {
         void shouldReturn404ForNonExistentPayment() throws Exception {
             // Given
             Long nonExistentId = 9999L;
-            given(paymentService.getPayment(nonExistentId))
+            given(paymentService.getData(nonExistentId))
                     .willThrow(new IllegalArgumentException("결제를 찾을 수 없습니다: " + nonExistentId));
 
             // When & Then
@@ -231,7 +231,7 @@ class PaymentControllerTest {
                     createMockPayment(2L),
                     createMockPayment(3L)
             );
-            given(paymentService.getAllPayments())
+            given(paymentService.getList())
                     .willReturn(mockPayments);
 
             // When & Then
@@ -248,7 +248,7 @@ class PaymentControllerTest {
         @DisplayName("결제가 없으면 빈 배열을 반환한다")
         void shouldReturnEmptyListWhenNoPayments() throws Exception {
             // Given
-            given(paymentService.getAllPayments())
+            given(paymentService.getList())
                     .willReturn(List.of());
 
             // When & Then
@@ -263,35 +263,35 @@ class PaymentControllerTest {
     class GetPaymentsByStatusTest {
 
         @Test
-        @DisplayName("COMPLETED 상태의 결제만 조회할 수 있다")
+        @DisplayName("C(완료) 상태의 결제만 조회할 수 있다")
         void shouldGetCompletedPayments() throws Exception {
             // Given
             List<Payment> completedPayments = Arrays.asList(
                     createMockPayment(1L),
                     createMockPayment(2L)
             );
-            given(paymentService.getPaymentsByStatus(PaymentStatus.COMPLETED))
+            given(paymentService.getListByStat(PaymentStatus.C))
                     .willReturn(completedPayments);
 
             // When & Then - 쿼리 파라미터 방식
             mockMvc.perform(get("/api/payments/status")
-                            .param("status", "COMPLETED"))
+                            .param("stat", "C"))
                     .andDo(print())
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$", hasSize(2)))
-                    .andExpect(jsonPath("$[*].status", everyItem(is("COMPLETED"))));
+                    .andExpect(jsonPath("$[*].stat", everyItem(is("C"))));
         }
 
         @Test
-        @DisplayName("PENDING 상태의 결제를 조회할 수 있다")
+        @DisplayName("P(대기) 상태의 결제를 조회할 수 있다")
         void shouldGetPendingPayments() throws Exception {
             // Given
-            given(paymentService.getPaymentsByStatus(PaymentStatus.PENDING))
+            given(paymentService.getListByStat(PaymentStatus.P))
                     .willReturn(List.of());
 
             // When & Then - 쿼리 파라미터 방식
             mockMvc.perform(get("/api/payments/status")
-                            .param("status", "PENDING"))
+                            .param("stat", "P"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$", hasSize(0)));
         }
@@ -307,11 +307,11 @@ class PaymentControllerTest {
             // Given
             Payment refundedPayment = createMockPayment(PAYMENT_ID);
             // 리플렉션으로 상태 변경 (테스트용)
-            java.lang.reflect.Field statusField = Payment.class.getDeclaredField("status");
+            java.lang.reflect.Field statusField = Payment.class.getDeclaredField("stat");
             statusField.setAccessible(true);
-            statusField.set(refundedPayment, PaymentStatus.REFUNDED);
+            statusField.set(refundedPayment, PaymentStatus.R);
 
-            given(paymentService.refundPayment(PAYMENT_ID))
+            given(paymentService.updateStatus(PAYMENT_ID))
                     .willReturn(refundedPayment);
 
             // When & Then - PATCH 메서드 사용 (부분 수정)
@@ -319,7 +319,7 @@ class PaymentControllerTest {
                     .andDo(print())
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(PAYMENT_ID))
-                    .andExpect(jsonPath("$.status").value("REFUNDED"));
+                    .andExpect(jsonPath("$.stat").value("R"));
         }
 
         @Test
@@ -327,7 +327,7 @@ class PaymentControllerTest {
         void shouldReturn400ForNonExistentPaymentRefund() throws Exception {
             // Given
             Long nonExistentId = 9999L;
-            given(paymentService.refundPayment(nonExistentId))
+            given(paymentService.updateStatus(nonExistentId))
                     .willThrow(new IllegalArgumentException("결제를 찾을 수 없습니다"));
 
             // When & Then - PATCH 메서드 사용
@@ -382,9 +382,9 @@ class PaymentControllerTest {
             idField.setAccessible(true);
             idField.set(payment, id);
 
-            java.lang.reflect.Field statusField = Payment.class.getDeclaredField("status");
+            java.lang.reflect.Field statusField = Payment.class.getDeclaredField("stat");
             statusField.setAccessible(true);
-            statusField.set(payment, PaymentStatus.COMPLETED);
+            statusField.set(payment, PaymentStatus.C);
         } catch (Exception e) {
             throw new RuntimeException("테스트 데이터 설정 실패", e);
         }

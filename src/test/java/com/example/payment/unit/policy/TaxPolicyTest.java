@@ -1,8 +1,8 @@
 package com.example.payment.unit.policy;
 
-import com.example.payment.policy.tax.KoreaTaxPolicy;
-import com.example.payment.policy.tax.TaxPolicy;
-import com.example.payment.policy.tax.UsTaxPolicy;
+import com.example.payment.strategy.tax.KoreaTaxStrategy;
+import com.example.payment.strategy.tax.TaxStrategy;
+import com.example.payment.strategy.tax.UsTaxStrategy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -32,7 +32,7 @@ class TaxPolicyTest {
     @DisplayName("한국 세금 정책 (KoreaTaxPolicy)")
     class KoreaTaxPolicyTest {
 
-        private final TaxPolicy taxPolicy = new KoreaTaxPolicy();
+        private final TaxStrategy taxStrategy = new KoreaTaxStrategy();
 
         @Test
         @DisplayName("한국은 10% 부가가치세가 적용된다")
@@ -41,7 +41,7 @@ class TaxPolicyTest {
             double discountedPrice = 10000.0;
 
             // When
-            double taxedPrice = taxPolicy.apply(discountedPrice);
+            double taxedPrice = taxStrategy.apply(discountedPrice);
 
             // Then
             double expectedPrice = discountedPrice * (1 + KOREA_TAX_RATE);  // 11000
@@ -61,7 +61,7 @@ class TaxPolicyTest {
         })
         void shouldCalculateCorrectKoreaTax(double discountedPrice, double expectedPrice) {
             // When
-            double taxedPrice = taxPolicy.apply(discountedPrice);
+            double taxedPrice = taxStrategy.apply(discountedPrice);
 
             // Then
             assertThat(taxedPrice).isEqualTo(expectedPrice);
@@ -74,7 +74,7 @@ class TaxPolicyTest {
             double discountedPrice = 10000.0;
 
             // When
-            double taxedPrice = taxPolicy.apply(discountedPrice);
+            double taxedPrice = taxStrategy.apply(discountedPrice);
 
             // Then
             assertThat(taxedPrice)
@@ -87,7 +87,7 @@ class TaxPolicyTest {
     @DisplayName("미국 세금 정책 (UsTaxPolicy)")
     class UsTaxPolicyTest {
 
-        private final TaxPolicy taxPolicy = new UsTaxPolicy();
+        private final TaxStrategy taxStrategy = new UsTaxStrategy();
 
         @Test
         @DisplayName("미국은 7% 판매세가 적용된다")
@@ -96,7 +96,7 @@ class TaxPolicyTest {
             double discountedPrice = 10000.0;
 
             // When
-            double taxedPrice = taxPolicy.apply(discountedPrice);
+            double taxedPrice = taxStrategy.apply(discountedPrice);
 
             // Then
             double expectedPrice = discountedPrice * (1 + US_TAX_RATE);  // 10700
@@ -116,7 +116,7 @@ class TaxPolicyTest {
         })
         void shouldCalculateCorrectUsTax(double discountedPrice, double expectedPrice) {
             // When
-            double taxedPrice = taxPolicy.apply(discountedPrice);
+            double taxedPrice = taxStrategy.apply(discountedPrice);
 
             // Then
             assertThat(taxedPrice).isEqualTo(expectedPrice);
@@ -127,8 +127,8 @@ class TaxPolicyTest {
     @DisplayName("국가별 세금 비교 테스트")
     class TaxComparisonTest {
 
-        private final TaxPolicy koreaTaxPolicy = new KoreaTaxPolicy();
-        private final TaxPolicy usTaxPolicy = new UsTaxPolicy();
+        private final TaxStrategy koreaTaxStrategy = new KoreaTaxStrategy();
+        private final TaxStrategy usTaxStrategy = new UsTaxStrategy();
 
         @Test
         @DisplayName("같은 금액에 대해 한국 세금이 미국보다 높다")
@@ -137,8 +137,8 @@ class TaxPolicyTest {
             double discountedPrice = 10000.0;
 
             // When
-            double koreaTaxed = koreaTaxPolicy.apply(discountedPrice);
-            double usTaxed = usTaxPolicy.apply(discountedPrice);
+            double koreaTaxed = koreaTaxStrategy.apply(discountedPrice);
+            double usTaxed = usTaxStrategy.apply(discountedPrice);
 
             // Then
             assertThat(koreaTaxed)
@@ -159,8 +159,8 @@ class TaxPolicyTest {
             double basePrice = 100000.0;  // 계산하기 쉬운 금액
 
             // When
-            double koreaTaxed = koreaTaxPolicy.apply(basePrice);
-            double usTaxed = usTaxPolicy.apply(basePrice);
+            double koreaTaxed = koreaTaxStrategy.apply(basePrice);
+            double usTaxed = usTaxStrategy.apply(basePrice);
 
             // Then
             double difference = koreaTaxed - usTaxed;

@@ -1,7 +1,7 @@
 package com.example.payment.unit.policy;
 
-import com.example.payment.policy.discount.DefaultDiscountPolicy;
-import com.example.payment.policy.discount.DiscountPolicy;
+import com.example.payment.strategy.discount.DefaultDiscountStrategy;
+import com.example.payment.strategy.discount.DiscountStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -51,7 +51,7 @@ class DiscountPolicyTest {
     private static final double NORMAL_DISCOUNT_RATE = 0.90;   // 10% 할인
 
     // 테스트 대상 (System Under Test)
-    private DiscountPolicy discountPolicy;
+    private DiscountStrategy discountStrategy;
 
     /**
      * [@BeforeEach]
@@ -62,7 +62,7 @@ class DiscountPolicyTest {
     @BeforeEach
     void setUp() {
         // 매 테스트마다 새로운 인스턴스 생성 → 테스트 격리
-        discountPolicy = new DefaultDiscountPolicy();
+        discountStrategy = new DefaultDiscountStrategy();
     }
 
     /**
@@ -83,7 +83,7 @@ class DiscountPolicyTest {
             boolean isVip = true;
 
             // When - 테스트 대상 실행
-            double discountedPrice = discountPolicy.apply(originalPrice, isVip);
+            double discountedPrice = discountStrategy.apply(originalPrice, isVip);
 
             // Then - 결과 검증
             double expectedPrice = originalPrice * VIP_DISCOUNT_RATE;  // 8500
@@ -112,7 +112,7 @@ class DiscountPolicyTest {
         })
         void shouldCalculateCorrectVipDiscount(double originalPrice, double expectedPrice) {
             // When
-            double discountedPrice = discountPolicy.apply(originalPrice, true);
+            double discountedPrice = discountStrategy.apply(originalPrice, true);
 
             // Then
             assertThat(discountedPrice).isEqualTo(expectedPrice);
@@ -131,7 +131,7 @@ class DiscountPolicyTest {
             boolean isVip = false;
 
             // When
-            double discountedPrice = discountPolicy.apply(originalPrice, isVip);
+            double discountedPrice = discountStrategy.apply(originalPrice, isVip);
 
             // Then
             double expectedPrice = originalPrice * NORMAL_DISCOUNT_RATE;  // 9000
@@ -151,7 +151,7 @@ class DiscountPolicyTest {
         })
         void shouldCalculateCorrectNormalDiscount(double originalPrice, double expectedPrice) {
             // When
-            double discountedPrice = discountPolicy.apply(originalPrice, false);
+            double discountedPrice = discountStrategy.apply(originalPrice, false);
 
             // Then
             assertThat(discountedPrice).isEqualTo(expectedPrice);
@@ -169,8 +169,8 @@ class DiscountPolicyTest {
             double originalPrice = ORIGINAL_PRICE;
 
             // When
-            double vipPrice = discountPolicy.apply(originalPrice, true);
-            double normalPrice = discountPolicy.apply(originalPrice, false);
+            double vipPrice = discountStrategy.apply(originalPrice, true);
+            double normalPrice = discountStrategy.apply(originalPrice, false);
 
             // Then
             assertThat(vipPrice)
@@ -195,8 +195,8 @@ class DiscountPolicyTest {
         @ValueSource(doubles = {1000, 5000, 10000, 50000, 100000})
         void vipAlwaysCheaperThanNormal(double originalPrice) {
             // When
-            double vipPrice = discountPolicy.apply(originalPrice, true);
-            double normalPrice = discountPolicy.apply(originalPrice, false);
+            double vipPrice = discountStrategy.apply(originalPrice, true);
+            double normalPrice = discountStrategy.apply(originalPrice, false);
 
             // Then
             assertThat(vipPrice).isLessThan(normalPrice);

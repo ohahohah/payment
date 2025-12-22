@@ -11,28 +11,16 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * ============================================================================
- * [GOOD] PaymentEntityTest - 결제 엔티티 단위 테스트
- * ============================================================================
- *
- * [테스트 특징]
- * - JPA/DB 없이 순수 엔티티만 테스트
- * - 엔티티의 생성, getter/setter 검증
- * - 스프링 컨텍스트 불필요 → 빠른 실행
- *
- * [테스트 범위]
- * - 정적 팩토리 메서드 (Payment.create)
- * - Getter/Setter 메서드
+ * Payment 엔티티 단위 테스트
  */
 @DisplayName("Payment 엔티티 단위 테스트")
 class PaymentEntityTest {
 
-    // 테스트 데이터 상수
-    private static final Double ORIGINAL_PRICE = 10000.0;
-    private static final Double DISCOUNTED_AMOUNT = 8500.0;
-    private static final Double TAXED_AMOUNT = 9350.0;
-    private static final String COUNTRY_KR = "KR";
-    private static final Boolean IS_VIP = true;
+    private static final Double AMT1 = 10000.0;     // 원래 가격
+    private static final Double AMT2 = 8500.0;      // 할인 후
+    private static final Double AMT3 = 9350.0;      // 세금 후
+    private static final String CD = "KR";          // 국가 코드
+    private static final Boolean FLAG = true;       // VIP 여부
 
     @Nested
     @DisplayName("결제 생성 테스트")
@@ -42,32 +30,24 @@ class PaymentEntityTest {
         @DisplayName("정적 팩토리 메서드로 결제를 생성할 수 있다")
         void shouldCreatePaymentWithFactoryMethod() {
             // When
-            Payment payment = Payment.create(
-                    ORIGINAL_PRICE,
-                    DISCOUNTED_AMOUNT,
-                    TAXED_AMOUNT,
-                    COUNTRY_KR,
-                    IS_VIP
-            );
+            Payment payment = Payment.create(AMT1, AMT2, AMT3, CD, FLAG);
 
             // Then
-            assertThat(payment.getOriginalPrice()).isEqualTo(ORIGINAL_PRICE);
-            assertThat(payment.getDiscountedAmount()).isEqualTo(DISCOUNTED_AMOUNT);
-            assertThat(payment.getTaxedAmount()).isEqualTo(TAXED_AMOUNT);
-            assertThat(payment.getCountry()).isEqualTo(COUNTRY_KR);
-            assertThat(payment.getIsVip()).isEqualTo(IS_VIP);
+            assertThat(payment.getAmt1()).isEqualTo(AMT1);
+            assertThat(payment.getAmt2()).isEqualTo(AMT2);
+            assertThat(payment.getAmt3()).isEqualTo(AMT3);
+            assertThat(payment.getCd()).isEqualTo(CD);
+            assertThat(payment.getFlag()).isEqualTo(FLAG);
         }
 
         @Test
-        @DisplayName("생성된 결제의 초기 상태는 PENDING이다")
+        @DisplayName("생성된 결제의 초기 상태는 P이다")
         void newPaymentShouldHavePendingStatus() {
             // When
             Payment payment = createTestPayment();
 
             // Then
-            assertThat(payment.getStatus())
-                    .as("새로 생성된 결제는 PENDING 상태여야 합니다")
-                    .isEqualTo(PaymentStatus.PENDING);
+            assertThat(payment.getStat()).isEqualTo(PaymentStatus.P);
         }
 
         @Test
@@ -77,9 +57,7 @@ class PaymentEntityTest {
             Payment payment = createTestPayment();
 
             // Then
-            assertThat(payment.getCreatedAt())
-                    .as("생성 시간이 설정되어야 합니다")
-                    .isNotNull();
+            assertThat(payment.getCdt()).isNotNull();
         }
 
         @Test
@@ -89,9 +67,7 @@ class PaymentEntityTest {
             Payment payment = createTestPayment();
 
             // Then
-            assertThat(payment.getUpdatedAt())
-                    .as("수정 시간이 설정되어야 합니다")
-                    .isNotNull();
+            assertThat(payment.getUdt()).isNotNull();
         }
     }
 
@@ -100,30 +76,30 @@ class PaymentEntityTest {
     class SetterTest {
 
         @Test
-        @DisplayName("setStatus로 상태를 변경할 수 있다")
+        @DisplayName("setStat로 상태를 변경할 수 있다")
         void shouldChangeStatusWithSetter() {
             // Given
             Payment payment = createTestPayment();
 
             // When
-            payment.setStatus(PaymentStatus.COMPLETED);
+            payment.setStat(PaymentStatus.C);
 
             // Then
-            assertThat(payment.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
+            assertThat(payment.getStat()).isEqualTo(PaymentStatus.C);
         }
 
         @Test
-        @DisplayName("setUpdatedAt로 수정 시간을 변경할 수 있다")
+        @DisplayName("setUdt로 수정 시간을 변경할 수 있다")
         void shouldChangeUpdatedAtWithSetter() {
             // Given
             Payment payment = createTestPayment();
             LocalDateTime newTime = LocalDateTime.now().plusHours(1);
 
             // When
-            payment.setUpdatedAt(newTime);
+            payment.setUdt(newTime);
 
             // Then
-            assertThat(payment.getUpdatedAt()).isEqualTo(newTime);
+            assertThat(payment.getUdt()).isEqualTo(newTime);
         }
     }
 
@@ -132,60 +108,47 @@ class PaymentEntityTest {
     class StatusChangeTest {
 
         @Test
-        @DisplayName("PENDING에서 COMPLETED로 변경할 수 있다")
+        @DisplayName("P에서 C로 변경할 수 있다")
         void shouldChangeFromPendingToCompleted() {
             // Given
             Payment payment = createTestPayment();
 
             // When
-            payment.setStatus(PaymentStatus.COMPLETED);
+            payment.setStat(PaymentStatus.C);
 
             // Then
-            assertThat(payment.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
+            assertThat(payment.getStat()).isEqualTo(PaymentStatus.C);
         }
 
         @Test
-        @DisplayName("COMPLETED에서 REFUNDED로 변경할 수 있다")
+        @DisplayName("C에서 R로 변경할 수 있다")
         void shouldChangeFromCompletedToRefunded() {
             // Given
             Payment payment = createTestPayment();
-            payment.setStatus(PaymentStatus.COMPLETED);
+            payment.setStat(PaymentStatus.C);
 
             // When
-            payment.setStatus(PaymentStatus.REFUNDED);
+            payment.setStat(PaymentStatus.R);
 
             // Then
-            assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+            assertThat(payment.getStat()).isEqualTo(PaymentStatus.R);
         }
 
         @Test
-        @DisplayName("PENDING에서 FAILED로 변경할 수 있다")
+        @DisplayName("P에서 F로 변경할 수 있다")
         void shouldChangeFromPendingToFailed() {
             // Given
             Payment payment = createTestPayment();
 
             // When
-            payment.setStatus(PaymentStatus.FAILED);
+            payment.setStat(PaymentStatus.F);
 
             // Then
-            assertThat(payment.getStatus()).isEqualTo(PaymentStatus.FAILED);
+            assertThat(payment.getStat()).isEqualTo(PaymentStatus.F);
         }
     }
 
-    // ========================================================================
-    // 테스트 헬퍼 메서드
-    // ========================================================================
-
-    /**
-     * 테스트용 Payment 객체 생성 헬퍼
-     */
     private Payment createTestPayment() {
-        return Payment.create(
-                ORIGINAL_PRICE,
-                DISCOUNTED_AMOUNT,
-                TAXED_AMOUNT,
-                COUNTRY_KR,
-                IS_VIP
-        );
+        return Payment.create(AMT1, AMT2, AMT3, CD, FLAG);
     }
 }

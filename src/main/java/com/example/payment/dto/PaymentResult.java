@@ -2,65 +2,36 @@ package com.example.payment.dto;
 
 /**
  * ====================================================================
- * PaymentResult - 결제 결과 데이터 전송 객체 (DTO)
+ * PaymentResult - 결제 처리 결과 DTO
  * ====================================================================
  *
- * [이 클래스의 역할]
- * - 결제 처리 후의 결과 데이터를 담아서 전달합니다
- * - Service에서 Controller로, 또는 API 응답으로 전송됩니다
+ * [이 DTO의 역할]
+ * - 결제 처리 후 클라이언트에게 반환하는 결과 데이터
+ * - 할인/세금 적용 과정의 금액 변화를 보여줍니다
  *
- * [Record의 불변성 (Immutability)]
- * - Record의 모든 필드는 final입니다 (변경 불가)
- * - 한번 생성되면 값을 바꿀 수 없습니다
- * - 이로 인해 스레드 안전(Thread-safe)하고 예측 가능한 코드가 됩니다
+ * [금액 흐름]
+ * amt1 (원래 가격)
+ *   ↓ 할인 적용 (VIP 15%, 일반 10%)
+ * amt2 (할인 후 금액)
+ *   ↓ 세금 적용 (한국 10%, 미국 7%)
+ * amt3 (최종 결제 금액)
  *
- * [Record 접근자 메서드]
- * - 기존 getter 메서드: getOriginalPrice()
- * - Record 접근자 메서드: originalPrice()  <- get 접두사 없음!
+ * [Record 사용 이유]
+ * - 결제 결과는 생성 후 변경되지 않음 (불변)
+ * - 간결한 코드로 DTO 정의 가능
+ * - equals/hashCode 자동 구현
  *
- * 사용 예:
- * PaymentResult result = new PaymentResult(10000, 8500, 9350, "KR", true);
- * double original = result.originalPrice();  // 10000
- * double taxed = result.taxedAmount();       // 9350
- *
- * [스프링의 JSON 직렬화]
- * - 이 객체를 Controller에서 반환하면
- * - 스프링이 자동으로 JSON으로 변환합니다 (직렬화)
- *
- * 응답 JSON 예시:
- * {
- *   "originalPrice": 10000,
- *   "discountedAmount": 8500,
- *   "taxedAmount": 9350,
- *   "country": "KR",
- *   "isVip": true
- * }
- *
- * @param originalPrice 원래 가격
- * @param discountedAmount 할인 적용 후 금액
- * @param taxedAmount 세금 적용 후 최종 금액
- * @param country 국가 코드
- * @param isVip VIP 고객 여부
+ * @param amt1 원래 가격 (Original Price) - 할인 적용 전 금액
+ * @param amt2 할인 후 금액 (Discounted Amount) - 할인 적용 후 금액
+ * @param amt3 세금 후 금액 (Taxed Amount) - 최종 결제 금액
+ * @param cd 국가 코드 (Country Code) - 세금 정책 결정에 사용
+ * @param flag VIP 여부 (isVip) - 할인율 결정에 사용
  */
 public record PaymentResult(
-        double originalPrice,
-        double discountedAmount,
-        double taxedAmount,
-        String country,
-        boolean isVip
+        double amt1,    // 원래 가격
+        double amt2,    // 할인 후 금액
+        double amt3,    // 세금 후 금액
+        String cd,      // 국가 코드
+        boolean flag    // VIP 여부
 ) {
-    // Record를 사용하면 아래 코드가 모두 자동 생성됩니다:
-    //
-    // 1. 생성자:
-    //    public PaymentResult(double originalPrice, double discountedAmount,
-    //                         double taxedAmount, String country, boolean isVip)
-    //
-    // 2. 접근자 메서드:
-    //    public double originalPrice() { return this.originalPrice; }
-    //    public double discountedAmount() { return this.discountedAmount; }
-    //    public double taxedAmount() { return this.taxedAmount; }
-    //    public String country() { return this.country; }
-    //    public boolean isVip() { return this.isVip; }
-    //
-    // 3. equals(), hashCode(), toString() 메서드
 }
