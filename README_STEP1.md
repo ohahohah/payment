@@ -1,324 +1,428 @@
-# Step 1: Value Object와 Rich Domain Model
+# Payment Step 1: Value Object 적용
 
 ## 개요
 
-이 단계에서는 Anti-DDD(빈약한 도메인 모델)에서 DDD(풍부한 도메인 모델)로 전환하는 첫 번째 단계를 다룹니다.
+이 패키지(`com.example.payment_step1`)는 **Value Object 패턴만** 적용한 독립 실행 가능한 결제 시스템.
+`payment_ul`의 `double`/`String` 타입을 `Money`/`Country` Value Object로 변경함.
 
-**핵심 변경 사항:**
-- Primitive 타입 → Value Object (Money, Country)
-- Anemic Entity → Rich Entity (Payment)
-- setter 기반 상태 변경 → 비즈니스 메서드 기반 상태 변경
+**적용 범위:**
+- Value Object (Money, Country)
+- @Convert를 통한 JPA 매핑
+
+**미적용 (payment_ul과 동일):**
+- Entity는 Anemic Domain Model 유지
+- setter를 통한 상태 변경
+- 비즈니스 로직은 Service에서 처리
+
+---
+
+## payment_ul과의 차이점
+
+| 항목 | payment_ul | payment_step1 |
+|------|------------|---------------|
+| 금액 타입 | `Double` | `Money` (Value Object) |
+| 국가 타입 | `String` | `Country` (Value Object) |
+| 금액 검증 | Service에서 if문 | Money 생성 시 자동 검증 |
+| 국가 검증 | 없음 | Country 생성 시 자동 검증 |
+| Policy 시그니처 | `double -> double` | `Money -> Money` |
+| JPA 매핑 | 기본 타입 | `@Convert` 사용 |
+| Entity 상태변경 | setter 사용 | setter 사용 (동일) |
+| 비즈니스 로직 위치 | Service | Service (동일) |
 
 ---
 
 ## 패키지 구조
 
 ```
-com.example.payment_step1
-└── domain
-    └── model
-        ├── PaymentStatus.java    # 결제 상태 열거형
-        ├── Money.java            # 금액 Value Object
-        ├── Country.java          # 국가 Value Object
-        └── Payment.java          # Aggregate Root (Rich Domain Model)
+com.example.payment_step1/
+|
++-- PaymentStep1Application.java     # Spring Boot 메인 클래스
+|
++-- domain/
+|   +-- model/
+|       +-- Money.java               # 금액 Value Object
+|       +-- Country.java             # 국가 Value Object
+|
++-- entity/
+|   +-- Payment.java                 # JPA 엔티티 (@Convert 사용, setter 유지)
+|   +-- PaymentStatus.java           # 결제 상태 열거형
+|
++-- converter/                       # JPA AttributeConverter
+|   +-- MoneyConverter.java          # Money <-> Double 변환
+|   +-- CountryConverter.java        # Country <-> String 변환
+|
++-- dto/
+|   +-- PaymentRequest.java          # 요청 DTO (외부 API용)
+|   +-- PaymentResult.java           # 응답 DTO (외부 API용)
+|
++-- policy/
+|   +-- discount/
+|   |   +-- CustomerDiscountPolicy.java  # 할인 정책 인터페이스
+|   |   +-- VipDiscountPolicy.java       # VIP 할인 구현체
+|   +-- tax/
+|       +-- TaxPolicy.java               # 세금 정책 인터페이스
+|       +-- KoreaVatPolicy.java          # 한국 VAT 구현체
+|
++-- repository/
+|   +-- PaymentRepository.java       # 저장소 인터페이스
+|
++-- service/
+|   +-- PaymentService.java          # 결제 서비스 (비즈니스 로직 포함)
+|
++-- controller/
+|   +-- PaymentController.java       # REST API
+|
++-- handler/
+    +-- PaymentCompletionHandler.java    # 완료 핸들러 인터페이스
+    +-- PaymentAuditLogger.java          # 감사 로그 핸들러
+    +-- SettlementRequestHandler.java    # 정산 요청 핸들러
 ```
 
 ---
 
-## Anti-DDD vs DDD 비교
+## JPA에서 Value Object 매핑: @Convert vs @Embedded
 
-### 1. Primitive Obsession vs Value Object
+JPA Entity에서 Value Object를 사용하려면 DB 컬럼과 매핑하는 방법을 선택해야함.
 
-#### Anti-DDD (Primitive Obsession)
+### 방법 1: @Convert (AttributeConverter)
+
+**특징:**
+- Value Object를 **단일 컬럼**에 저장
+- Java 객체 <-> DB 값 양방향 변환
+- 기존 DB 스키마 그대로 사용 가능
+
+**적합한 경우:**
+- Money (double 하나로 표현)
+- Country (String 하나로 표현)
+- 단일 값을 가진 Value Object
 
 ```java
+// Converter 정의
+@Converter(autoApply = true)
+public class MoneyConverter implements AttributeConverter<Money, Double> {
+
+    @Override
+    public Double convertToDatabaseColumn(Money money) {
+        // Java -> DB: Money 객체를 Double로 변환
+        return money == null ? null : money.getAmount();
+    }
+
+    @Override
+    public Money convertToEntityAttribute(Double amount) {
+        // DB -> Java: Double을 Money 객체로 변환
+        return amount == null ? null : Money.of(amount);
+    }
+}
+
+// Entity에서 사용
+@Entity
 public class Payment {
-    private double originalPrice;      // 원시 타입
-    private double discountedAmount;   // 타입만 보고는 의미 파악 불가
-    private double taxedAmount;
-    private String countryCode;        // 유효성 검증 어디서?
-
-    // setter로 아무 값이나 설정 가능
-    public void setOriginalPrice(double price) {
-        this.originalPrice = price;  // 음수도 가능!
-    }
+    @Convert(converter = MoneyConverter.class)
+    @Column(nullable = false)
+    private Money originalPrice;  // DB에는 DOUBLE 컬럼 하나
 }
 ```
 
-**문제점:**
-- 음수 금액 허용
-- 잘못된 국가 코드 허용
-- 타입만으로 의미 파악 불가
-- 유효성 검증 로직이 여러 곳에 분산
+**DB 스키마:**
+```sql
+CREATE TABLE payments (
+    original_price DOUBLE NOT NULL,  -- Money -> Double
+    country VARCHAR(10) NOT NULL     -- Country -> String
+);
+```
 
-#### DDD (Value Object)
+### 방법 2: @Embedded (Embeddable)
+
+**특징:**
+- Value Object를 **여러 컬럼**에 저장
+- Value Object의 필드가 그대로 테이블 컬럼이 됨
+
+**적합한 경우:**
+- Address (city, street, zipCode 여러 필드)
+- 복합 값을 가진 Value Object
 
 ```java
-public class Payment {
-    private final Money originalPrice;      // 의미 있는 타입!
-    private final Money discountedAmount;
-    private final Money taxedAmount;
-    private final Country country;
+// Value Object 정의
+@Embeddable
+public class Address {
+    private String city;
+    private String street;
+    private String zipCode;
+}
 
-    // setter 없음! 생성 시 검증 완료
+// Entity에서 사용
+@Entity
+public class Customer {
+    @Embedded
+    private Address address;  // DB에 city, street, zip_code 3개 컬럼
 }
 ```
 
-**장점:**
-- 자가 검증 (음수 불가)
-- 타입만 봐도 의미 파악
-- 불변 객체
-- 단위 테스트 용이
-
----
-
-### 2. Money Value Object
-
-```java
-public class Money {
-    private final double amount;
-
-    // 팩토리 메서드 - 자가 검증
-    public static Money of(double amount) {
-        if (amount < 0) {
-            throw new IllegalArgumentException("금액은 0 이상이어야 합니다");
-        }
-        return new Money(amount);
-    }
-
-    // 불변 연산 - 새 객체 반환
-    public Money multiply(double rate) {
-        return new Money(Math.round(this.amount * rate));
-    }
-
-    public Money add(Money other) {
-        return new Money(this.amount + other.amount);
-    }
-
-    // 비즈니스 메서드
-    public boolean isGreaterThan(Money other) {
-        return this.amount > other.amount;
-    }
-}
+**DB 스키마:**
+```sql
+CREATE TABLE customers (
+    city VARCHAR(100),
+    street VARCHAR(200),
+    zip_code VARCHAR(10)
+);
 ```
 
-**Value Object 특징:**
-1. **불변성**: 한번 생성되면 값 변경 불가
-2. **자가 검증**: 유효하지 않은 값으로 생성 불가
-3. **값 동등성**: 같은 값이면 equals() == true
-4. **부수효과 없음**: 연산 시 새 객체 반환
+### 이 프로젝트의 선택: @Convert
 
----
+**선택 이유:**
+1. Money와 Country 모두 **단일 값**으로 표현 가능
+2. payment_ul과 **동일한 DB 스키마** 유지
+3. 기존 데이터 **마이그레이션 불필요**
+4. 구현이 단순함
 
-### 3. Country Value Object
+**변환 흐름:**
+```
+[Java]                         [DB]
+Money(10000.0)  ---저장--->    10000.0 (DOUBLE)
+Money(10000.0)  <--조회---     10000.0 (DOUBLE)
+                MoneyConverter
 
-```java
-public class Country {
-    private static final Set<String> SUPPORTED = Set.of("KR", "US");
-    private final String code;
-
-    // 팩토리 메서드 - 지원 국가만 허용
-    public static Country of(String code) {
-        String normalized = code.toUpperCase();
-        if (!SUPPORTED.contains(normalized)) {
-            throw new IllegalArgumentException("지원하지 않는 국가: " + code);
-        }
-        return new Country(normalized);
-    }
-
-    // 비즈니스 메서드 - 도메인 지식 캡슐화
-    public boolean isKorea() { return "KR".equals(code); }
-    public boolean isUs() { return "US".equals(code); }
-
-    // 편의 팩토리 메서드
-    public static Country korea() { return of("KR"); }
-    public static Country us() { return of("US"); }
-}
+Country("KR")   ---저장--->    "KR" (VARCHAR)
+Country("KR")   <--조회---     "KR" (VARCHAR)
+                CountryConverter
 ```
 
 ---
 
-### 4. Anemic vs Rich Domain Model
+## 주요 변경 내용
 
-#### Anti-DDD (Anemic Domain Model)
+### 1. Service 계층 - Value Object 검증
 
+**변경 전 (payment_ul) - 수동 검증 필요:**
 ```java
-// Entity - 데이터만 보관
-public class Payment {
-    private PaymentStatus status;
-
-    public PaymentStatus getStatus() { return status; }
-    public void setStatus(PaymentStatus status) {
-        this.status = status;  // 아무 상태로나 변경 가능!
+public PaymentResult processPayment(PaymentRequest request) {
+    // 검증 로직이 Service에 있음
+    if (request.originalPrice() < 0) {
+        throw new IllegalArgumentException("가격은 0 이상이어야 합니다");
     }
-}
 
-// Service - 비즈니스 로직 담당
-public class PaymentService {
-    public void complete(Payment payment) {
-        if (payment.getStatus() != PaymentStatus.PENDING) {
-            throw new IllegalStateException("...");
-        }
-        payment.setStatus(PaymentStatus.COMPLETED);
-        // 정산 서비스 호출, 로깅 등...
-    }
+    double discountedAmount = customerDiscountPolicy.apply(
+            request.originalPrice(), request.isVip());
+    double taxedAmount = taxPolicy.apply(discountedAmount);
+    // ...
 }
 ```
 
-**문제점:**
-- Entity가 단순 데이터 홀더
-- 비즈니스 규칙이 Service에 흩어짐
-- 외부에서 setStatus() 직접 호출 가능
-- 도메인 지식 파편화
-
-#### DDD (Rich Domain Model)
-
+**변경 후 (payment_step1) - Value Object가 검증:**
 ```java
-public class Payment {
-    private PaymentStatus status;
+public PaymentResult processPayment(PaymentRequest request) {
+    // Money.of()에서 음수 검증 -> 별도 if문 불필요
+    // Country.of()에서 유효 국가 검증
+    Money originalPrice = Money.of(request.originalPrice());
+    Country country = Country.of(request.country());
 
-    // setter 없음! 비즈니스 메서드로만 상태 변경
-
-    public void complete() {
-        // 도메인 규칙 검증
-        if (this.status != PaymentStatus.PENDING) {
-            throw new IllegalStateException(
-                "대기 상태의 결제만 완료할 수 있습니다");
-        }
-
-        // 상태 변경
-        this.status = PaymentStatus.COMPLETED;
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    public void refund() {
-        if (this.status != PaymentStatus.COMPLETED) {
-            throw new IllegalStateException(
-                "완료된 결제만 환불할 수 있습니다");
-        }
-
-        this.status = PaymentStatus.REFUNDED;
-    }
+    Money discountedAmount = customerDiscountPolicy.apply(originalPrice, request.isVip());
+    Money taxedAmount = taxPolicy.apply(discountedAmount);
+    // ...
 }
 ```
 
-**장점:**
-- 도메인 규칙이 Entity 안에 캡슐화
-- 잘못된 상태 전이 불가능
-- 의미 있는 메서드명 (complete, refund)
+### 2. Policy 인터페이스 - Money 타입 사용
+
+**변경 전:**
+```java
+public interface CustomerDiscountPolicy {
+    double apply(double originalPrice, boolean isVip);
+}
+```
+
+**변경 후:**
+```java
+public interface CustomerDiscountPolicy {
+    Money apply(Money originalPrice, boolean isVip);
+}
+```
+
+### 3. Policy 구현체 - Money.multiply() 사용
+
+**변경 전:**
+```java
+public double apply(double originalPrice, boolean isVip) {
+    if (isVip) {
+        return originalPrice * 0.85;
+    }
+    return originalPrice;
+}
+```
+
+**변경 후:**
+```java
+public Money apply(Money originalPrice, boolean isVip) {
+    if (isVip) {
+        return originalPrice.multiply(0.85);  // Money의 연산 메서드 사용
+    }
+    return originalPrice;
+}
+```
+
+### 4. Entity - Value Object + setter 유지
+
+**변경 전 (payment_ul):**
+```java
+@Column(nullable = false)
+private Double originalPrice;
+
+@Column(nullable = false, length = 10)
+private String country;
+
+// setter로 상태 변경
+public void setStatus(PaymentStatus status) { this.status = status; }
+```
+
+**변경 후 (payment_step1):**
+```java
+// Value Object 적용 + @Convert
+@Convert(converter = MoneyConverter.class)
+@Column(nullable = false)
+private Money originalPrice;
+
+@Convert(converter = CountryConverter.class)
+@Column(nullable = false, length = 10)
+private Country country;
+
+// setter 유지 (payment_ul과 동일)
+public void setStatus(PaymentStatus status) { this.status = status; }
+```
 
 ---
 
-### 5. 상태 전이 다이어그램
+## 변경되지 않은 점 (payment_ul과 동일)
 
-```
-                    complete()
-    ┌─────────────┐ ─────────────> ┌─────────────┐
-    │   PENDING   │                │  COMPLETED  │
-    └─────────────┘                └─────────────┘
-           │                              │
-           │ fail()                       │ refund()
-           ▼                              ▼
-    ┌─────────────┐                ┌─────────────┐
-    │   FAILED    │                │  REFUNDED   │
-    └─────────────┘                └─────────────┘
-```
-
-**상태 전이 규칙:**
-- PENDING → COMPLETED (complete 호출)
-- PENDING → FAILED (fail 호출)
-- COMPLETED → REFUNDED (refund 호출)
-- 그 외 전이는 모두 예외 발생!
-
----
-
-## 테스트 코드
-
-### Value Object 테스트
+### Entity는 Anemic Domain Model 유지
 
 ```java
-@Test
-@DisplayName("음수 금액은 거부 - 자가 검증")
-void rejectNegativeAmount() {
-    assertThatThrownBy(() -> Money.of(-1000))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("0 이상");
-}
+// Service에서 상태 검증 및 변경
+public Payment refundPayment(Long id) {
+    Payment payment = getPayment(id);
 
-@Test
-@DisplayName("같은 금액은 동등 (equals)")
-void equalsByValue() {
-    Money money1 = Money.of(10000);
-    Money money2 = Money.of(10000);
+    // 비즈니스 로직이 Service에 있음
+    if (payment.getStatus() != PaymentStatus.COMPLETED) {
+        throw new IllegalStateException("완료된 결제만 환불할 수 있습니다");
+    }
 
-    // 다른 인스턴스지만 값이 같으면 같다!
-    assertThat(money1).isEqualTo(money2);
-}
-```
+    // setter로 상태 변경
+    payment.setStatus(PaymentStatus.REFUNDED);
+    payment.setUpdatedAt(LocalDateTime.now());
 
-### Rich Domain Model 테스트
-
-```java
-@Test
-@DisplayName("완료된 결제에 complete() 호출 → 예외")
-void cannotCompleteAlreadyCompleted() {
-    Payment payment = createSamplePayment();
-    payment.complete();  // 첫 번째 완료
-
-    // 두 번째 완료 시도 → 예외!
-    assertThatThrownBy(() -> payment.complete())
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("대기 상태");
-}
-
-@Test
-@DisplayName("정상 흐름: PENDING → COMPLETED → REFUNDED")
-void normalFlow() {
-    Payment payment = createSamplePayment();
-
-    assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
-
-    payment.complete();
-    assertThat(payment.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
-
-    payment.refund();
-    assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+    return payment;
 }
 ```
 
 ---
 
-## 테스트 실행
+## Value Object 특징
+
+### 1. 자가 검증 (Self-Validation)
+
+```java
+Money.of(-1000);  // IllegalArgumentException: 금액은 0 이상이어야 합니다
+Country.of("JP"); // IllegalArgumentException: 지원하지 않는 국가입니다
+```
+
+### 2. 불변성 (Immutability)
+
+```java
+Money original = Money.of(10000);
+Money discounted = original.multiply(0.9);  // 새 객체 반환
+
+// original은 여전히 10000 (변경되지 않음)
+// discounted는 9000
+```
+
+### 3. 값 동등성 (Value Equality)
+
+```java
+Money money1 = Money.of(10000);
+Money money2 = Money.of(10000);
+
+money1.equals(money2);  // true (같은 값이면 같은 객체)
+```
+
+---
+
+## 실행 방법
 
 ```bash
-# Step 1 테스트만 실행
-./gradlew test --tests "com.example.payment_step1.*"
+./gradlew bootRun -PmainClass=com.example.payment_step1.PaymentStep1Application
 ```
 
 ---
 
-## 핵심 포인트 정리
+## 테스트
 
-| 항목 | Anti-DDD | DDD (Step 1) |
-|------|----------|--------------|
-| 금액 타입 | `double` | `Money` (Value Object) |
-| 국가 타입 | `String` | `Country` (Value Object) |
-| 상태 변경 | `setStatus()` | `complete()`, `refund()` |
-| 규칙 검증 | Service에서 | Entity에서 |
-| 불변성 | X (setter 존재) | O (setter 없음) |
+```bash
+# 전체 테스트
+./gradlew test --tests "com.example.payment_step1.*"
+
+# Value Object 테스트
+./gradlew test --tests "com.example.payment_step1.domain.model.*"
+
+# Service 단위 테스트
+./gradlew test --tests "com.example.payment_step1.unit.*"
+
+# Repository 테스트
+./gradlew test --tests "com.example.payment_step1.repository.*"
+```
 
 ---
 
-## 다음 단계 (Step 2)
+## API 엔드포인트
 
-Step 2에서는 도메인 이벤트를 추가합니다:
-- DomainEvent 인터페이스
-- PaymentCompletedEvent, PaymentRefundedEvent
-- Aggregate Root에서 이벤트 등록
+| 메서드 | URL | 설명 |
+|--------|-----|------|
+| POST | /api/step1/payments | 결제 생성 |
+| GET | /api/step1/payments/{id} | 결제 조회 |
+| GET | /api/step1/payments | 전체 조회 |
+| PATCH | /api/step1/payments/{id}/refund | 환불 |
 
-현재 Step 1에서는 Value Object와 Rich Domain Model만 적용했으며, 이것만으로도:
-- 타입 안전성 확보
-- 비즈니스 규칙 캡슐화
-- 테스트 용이성 향상
+---
 
-의 효과를 얻을 수 있습니다.
+## 요청/응답 예시
+
+### 결제 생성 요청
+
+```json
+POST /api/step1/payments
+{
+  "originalPrice": 10000,
+  "country": "KR",
+  "isVip": true
+}
+```
+
+### 응답
+
+```json
+{
+  "originalPrice": 10000.0,
+  "discountedAmount": 8500.0,
+  "taxedAmount": 9350.0,
+  "country": "KR",
+  "isVip": true
+}
+```
+
+---
+
+## 변경 효과 요약
+
+| 효과 | 설명 |
+|------|------|
+| 자동 검증 | Money.of(), Country.of()에서 유효성 검사 |
+| 타입 안전성 | Money와 Country를 혼동할 수 없음 |
+| 로직 캡슐화 | money.multiply(0.9) 같은 연산이 객체 안에 |
+| 코드 간결화 | Service에서 if문 검증 제거 |
+| DB 호환성 | @Convert로 기존 스키마 그대로 사용 |
+
+---
+
+## 다음 단계
+- Rich Domain Model (비즈니스 메서드를 Entity에 캡슐화).
+  - Entity에서 complete(), refund() 같은 비즈니스 메서드 제공
+  - setter 제거
+  - 상태 전이 규칙을 Entity 안에 캡슐화
