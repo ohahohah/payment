@@ -1,50 +1,70 @@
 package com.example.payment_ddd_v1.infrastructure;
 
-import com.example.payment_ddd_v1.domain.model.Money;
 import com.example.payment_ddd_v1.domain.model.Payment;
-import com.example.payment_ddd_v1.domain.model.PaymentStatus;
 import com.example.payment_ddd_v1.domain.repository.PaymentRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * JpaPaymentRepository - PaymentRepository 구현체
  *
+ * ============================================================================
  * [Infrastructure 계층]
- * - Domain 인터페이스의 구현체
- * - 실제 데이터 저장 기술 담당 (JPA, JDBC, Memory 등)
+ * ============================================================================
  *
- * [현재 구현]
- * - 단순화를 위해 In-Memory 저장소 사용
- * - 실제로는 JPA EntityManager 또는 Spring Data JPA 사용
+ * - Domain 인터페이스(PaymentRepository)의 구현체
+ * - 실제 데이터 저장 기술 담당 (JPA)
+ * - Spring Data JPA를 내부적으로 사용
+ *
+ * ============================================================================
+ * [의존성 역전 원칙 (DIP)]
+ * ============================================================================
+ *
+ * Domain 계층:
+ *   PaymentRepository (인터페이스) <- PaymentService가 의존
+ *
+ * Infrastructure 계층:
+ *   JpaPaymentRepository (구현체) -> PaymentRepository 구현
+ *
+ * → Domain은 Infrastructure를 모름!
+ * → 기술 변경 시 구현체만 교체
+ *
+ * ============================================================================
+ * [왜 Spring Data JPA를 직접 상속하지 않나요?]
+ * ============================================================================
+ *
+ * 직접 상속 시:
+ *   public interface PaymentRepository extends JpaRepository<Payment, Long>
+ *   → Domain 계층이 Spring Data에 의존하게 됨
+ *
+ * 현재 구조:
+ *   Domain: PaymentRepository (순수 인터페이스)
+ *   Infra: JpaPaymentRepository → SpringDataPaymentRepository
+ *   → Domain 계층은 Spring을 몰라도 됨
  */
 @Repository
 public class JpaPaymentRepository implements PaymentRepository {
 
-    private final Map<Long, Payment> store = new ConcurrentHashMap<>();
-    private final AtomicLong sequence = new AtomicLong(1);
+    private final SpringDataPaymentRepository springDataRepository;
+
+    public JpaPaymentRepository(SpringDataPaymentRepository springDataRepository) {
+        this.springDataRepository = springDataRepository;
+    }
 
     @Override
     public Payment save(Payment payment) {
-        if (payment.getId() == null) {
-            payment.setId(sequence.getAndIncrement());
-        }
-        store.put(payment.getId(), payment);
-        return payment;
+        return springDataRepository.save(payment);
     }
 
     @Override
     public Optional<Payment> findById(Long id) {
-        return Optional.ofNullable(store.get(id));
+        return springDataRepository.findById(id);
     }
 
     @Override
     public List<Payment> findAll() {
-        return List.copyOf(store.values());
+        return springDataRepository.findAll();
     }
 }

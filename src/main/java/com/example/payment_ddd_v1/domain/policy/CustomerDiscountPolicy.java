@@ -4,16 +4,16 @@ import com.example.payment_ddd_v1.domain.model.Money;
 import org.springframework.stereotype.Component;
 
 /**
- * VipDiscountPolicy - VIP 고객 할인 정책 (10%)
+ * CustomerDiscountPolicy - 일반 고객 할인 정책 (5%)
  *
  * [Policy 패턴]
- * - VIP 고객에게 적용되는 할인 정책
- * - 일반 고객은 CustomerDiscountPolicy 사용
+ * - 일반 고객에게 적용되는 할인 정책
+ * - VIP 고객은 VipDiscountPolicy 사용
  */
 @Component
-public class VipDiscountPolicy implements DiscountPolicy {
+public class CustomerDiscountPolicy implements DiscountPolicy {
 
-    private static final double DISCOUNT_RATE = 0.10;
+    private static final double DISCOUNT_RATE = 0.05;
 
     @Override
     public Money calculateDiscount(Money price) {

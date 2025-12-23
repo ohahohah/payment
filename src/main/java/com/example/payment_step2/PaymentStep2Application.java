@@ -12,9 +12,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * - Entity에서 비즈니스 메서드로 상태 변경
  */
 @SpringBootApplication
-public class PaymentStep1Application {
+public class PaymentStep2Application {
 
     public static void main(String[] args) {
-        SpringApplication.run(PaymentStep1Application.class, args);
+        SpringApplication.run(PaymentStep2Application.class, args);
     }
 }

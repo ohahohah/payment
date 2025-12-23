@@ -1,12 +1,11 @@
-package com.example.payment_ddd_v1.application;
+package com.example.payment_ddd_v1_1.application;
 
-import com.example.payment_ddd_v1.domain.model.Country;
-import com.example.payment_ddd_v1.domain.model.Money;
-import com.example.payment_ddd_v1.domain.model.Payment;
-import com.example.payment_ddd_v1.domain.policy.DiscountPolicy;
-import com.example.payment_ddd_v1.domain.policy.TaxPolicy;
-import com.example.payment_ddd_v1.domain.repository.PaymentRepository;
-import com.example.payment_ddd_v1.interfaces.PaymentRequest;
+import com.example.payment_ddd_v1_1.domain.model.Country;
+import com.example.payment_ddd_v1_1.domain.model.Money;
+import com.example.payment_ddd_v1_1.domain.model.Payment;
+import com.example.payment_ddd_v1_1.domain.policy.DiscountPolicy;
+import com.example.payment_ddd_v1_1.domain.policy.TaxPolicy;
+import com.example.payment_ddd_v1_1.domain.repository.PaymentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,32 +14,10 @@ import java.util.List;
 /**
  * PaymentService - 결제 응용 서비스
  *
- * ============================================================================
- * [Application 계층의 역할]
- * ============================================================================
- *
- * 1. 유스케이스 조율 (Orchestration)
- *    - 도메인 객체들을 조합하여 유스케이스 수행
- *    - 비즈니스 로직은 Domain 계층에 위임
- *
- * 2. 트랜잭션 관리
- *    - @Transactional로 트랜잭션 경계 설정
- *
- * 3. 인프라 서비스 조율
- *    - Repository를 통한 영속화
- *
- * ============================================================================
- * [Application Service vs Domain Service]
- * ============================================================================
- *
- * Application Service (여기):
- * - 유스케이스 흐름 제어
+ * [Application 계층]
+ * - 유스케이스 조율
  * - 트랜잭션 관리
- * - 비즈니스 로직 없음
- *
- * Domain Service:
- * - 특정 엔티티에 속하지 않는 도메인 로직
- * - 예: 할인 계산, 세금 계산 (DiscountPolicy, TaxPolicy)
+ * - 비즈니스 로직은 Domain에 위임
  */
 @Service
 @Transactional
@@ -65,15 +42,14 @@ public class PaymentService {
     /**
      * 결제 생성
      */
-    public Payment createPayment(PaymentRequest request) {
-        Money originalPrice = Money.of(request.getPrice());
-        Country country = Country.of(request.getCountryCode());
-        Boolean isVip = request.getIsVip();
+    public Payment createPayment(double amount, String countryCode, boolean isVip) {
+        Money originalPrice = Money.of(amount);
+        Country country = Country.of(countryCode);
 
         DiscountPolicy discountPolicy = isVip ? vipDiscountPolicy : customerDiscountPolicy;
         Money discount = discountPolicy.calculateDiscount(originalPrice);
         Money discountedAmount = originalPrice.subtract(discount);
-        Money taxedAmount = taxPolicy.apply(discountedAmount);
+        Money taxedAmount = taxPolicy.applyTax(discountedAmount);
 
         Payment payment = Payment.create(
                 originalPrice, discountedAmount, taxedAmount, country, isVip);
@@ -99,12 +75,12 @@ public class PaymentService {
     }
 
     /**
-     * 결제 완료 처리
+     * 결제 완료
      */
     public Payment completePayment(Long id) {
         Payment payment = getPayment(id);
         payment.complete();
-        return payment;
+        return paymentRepository.save(payment);
     }
 
     /**
@@ -113,15 +89,15 @@ public class PaymentService {
     public Payment refundPayment(Long id) {
         Payment payment = getPayment(id);
         payment.refund();
-        return payment;
+        return paymentRepository.save(payment);
     }
 
     /**
-     * 결제 실패 처리
+     * 결제 실패
      */
     public Payment failPayment(Long id) {
         Payment payment = getPayment(id);
         payment.fail();
-        return payment;
+        return paymentRepository.save(payment);
     }
 }

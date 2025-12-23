@@ -1,14 +1,14 @@
-package com.example.payment_ddd_v1.domain.model;
+package com.example.payment_ddd_v1_1.domain.model;
 
 import java.util.Objects;
 
 /**
- * Money - 금액 Value Object
+ * Money - 금액 Value Object (순수 Java)
  *
- * [Value Object 특징]
- * 1. 불변(Immutable) - setter 없음
- * 2. 동등성(Equality) - 값이 같으면 같은 객체
- * 3. 자가 검증 - 생성 시 유효성 검증
+ * [정석 DDD]
+ * - 프레임워크 의존 없음 (JPA, Spring 등)
+ * - 순수 Java로만 구성
+ * - 불변, 자가 검증, 값 동등성
  */
 public class Money {
 
@@ -64,6 +64,6 @@ public class Money {
 
     @Override
     public String toString() {
-        return String.format("%.0f원", amount);
+        return String.format("Money(%.0f원)", amount);
     }
 }

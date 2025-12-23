@@ -34,9 +34,9 @@
 ## 패키지 구조
 
 ```
-com.example.payment_step1/
+com.example.payment_step2/
 |
-+-- PaymentStep1Application.java     # Spring Boot 메인 클래스
++-- PaymentStep2Application.java     # Spring Boot 메인 클래스
 |
 +-- domain/
 |   +-- model/
@@ -208,7 +208,7 @@ public PaymentResult processPayment(PaymentRequest request) {
 }
 ```
 
-**변경 후 (payment_step1) - Value Object가 검증:**
+**변경 후 (payment_step2) - Value Object가 검증:**
 ```java
 public PaymentResult processPayment(PaymentRequest request) {
     // Money.of()에서 음수 검증 -> 별도 if문 불필요
@@ -274,7 +274,7 @@ private String country;
 public void setStatus(PaymentStatus status) { this.status = status; }
 ```
 
-**변경 후 (payment_step1):**
+**변경 후 (payment_step2):**
 ```java
 // Value Object 적용 + @Convert
 @Convert(converter = MoneyConverter.class)
@@ -348,7 +348,7 @@ money1.equals(money2);  // true (같은 값이면 같은 객체)
 ## 실행 방법
 
 ```bash
-./gradlew bootRun -PmainClass=com.example.payment_step1.PaymentStep1Application
+./gradlew bootRun -PmainClass=com.example.payment_step2.Paymentstep2Application
 ```
 
 ---
@@ -357,16 +357,16 @@ money1.equals(money2);  // true (같은 값이면 같은 객체)
 
 ```bash
 # 전체 테스트
-./gradlew test --tests "com.example.payment_step1.*"
+./gradlew test --tests "com.example.payment_step2.*"
 
 # Value Object 테스트
-./gradlew test --tests "com.example.payment_step1.domain.model.*"
+./gradlew test --tests "com.example.payment_step2.domain.model.*"
 
 # Service 단위 테스트
-./gradlew test --tests "com.example.payment_step1.unit.*"
+./gradlew test --tests "com.example.payment_step2.unit.*"
 
 # Repository 테스트
-./gradlew test --tests "com.example.payment_step1.repository.*"
+./gradlew test --tests "com.example.payment_step2.repository.*"
 ```
 
 ---
@@ -375,10 +375,10 @@ money1.equals(money2);  // true (같은 값이면 같은 객체)
 
 | 메서드 | URL | 설명 |
 |--------|-----|------|
-| POST | /api/step1/payments | 결제 생성 |
-| GET | /api/step1/payments/{id} | 결제 조회 |
-| GET | /api/step1/payments | 전체 조회 |
-| PATCH | /api/step1/payments/{id}/refund | 환불 |
+| POST | /api/step2/payments | 결제 생성 |
+| GET | /api/step2/payments/{id} | 결제 조회 |
+| GET | /api/step2/payments | 전체 조회 |
+| PATCH | /api/step2/payments/{id}/refund | 환불 |
 
 ---
 
@@ -387,7 +387,7 @@ money1.equals(money2);  // true (같은 값이면 같은 객체)
 ### 결제 생성 요청
 
 ```json
-POST /api/step1/payments
+POST /api/step2/payments
 {
   "originalPrice": 10000,
   "country": "KR",

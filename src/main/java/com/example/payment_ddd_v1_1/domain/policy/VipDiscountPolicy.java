@@ -1,14 +1,10 @@
-package com.example.payment_ddd_v1.domain.policy;
+package com.example.payment_ddd_v1_1.domain.policy;
 
-import com.example.payment_ddd_v1.domain.model.Money;
+import com.example.payment_ddd_v1_1.domain.model.Money;
 import org.springframework.stereotype.Component;
 
 /**
- * VipDiscountPolicy - VIP 고객 할인 정책 (10%)
- *
- * [Policy 패턴]
- * - VIP 고객에게 적용되는 할인 정책
- * - 일반 고객은 CustomerDiscountPolicy 사용
+ * VipDiscountPolicy - VIP 고객 할인 (10%)
  */
 @Component
 public class VipDiscountPolicy implements DiscountPolicy {

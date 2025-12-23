@@ -1,14 +1,9 @@
-package com.example.payment_ddd_v1.domain.model;
+package com.example.payment_step4_1.domain.model;
 
 import java.util.Objects;
 
 /**
  * Money - 금액 Value Object
- *
- * [Value Object 특징]
- * 1. 불변(Immutable) - setter 없음
- * 2. 동등성(Equality) - 값이 같으면 같은 객체
- * 3. 자가 검증 - 생성 시 유효성 검증
  */
 public class Money {
 
@@ -39,10 +34,6 @@ public class Money {
 
     public Money multiply(double rate) {
         return new Money(Math.round(this.amount * rate));
-    }
-
-    public boolean isGreaterThan(Money other) {
-        return this.amount > other.amount;
     }
 
     public double getAmount() {

@@ -1,320 +1,366 @@
-# DDD 레이어드 아키텍처 (단순화 버전)
+# Payment DDD V1 - DDD 계층형 아키텍처 예제
 
 ## 개요
 
-이 패키지(`com.example.payment_ddd_v1`)는 **DDD 레이어드 아키텍처**를 학습하기 위한 단순화된 버전.
+DDD(Domain-Driven Design) 계층형 아키텍처를 적용한 결제 시스템입니다.
 
+**주요 특징:**
+- Rich Domain Model (비즈니스 로직이 Entity에 캡슐화)
+- Value Object (Money, Country)
+- Repository 패턴 (의존성 역전 - DIP)
+- **JPA를 활용한 실제 데이터베이스 영속화 (H2)**
+
+---
+
+## 계층 구조
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Interfaces 계층                          │
+│  (PaymentController, PaymentDto)                            │
+│  - 사용자 요청/응답 처리                                    │
+└─────────────────────────────────────────────────────────────┘
+                              ↓ 의존
+┌─────────────────────────────────────────────────────────────┐
+│                    Application 계층                          │
+│  (PaymentService)                                            │
+│  - 유스케이스 조율 (Orchestration)                           │
+│  - 트랜잭션 관리                                             │
+│  - 비즈니스 로직 없음 (Domain에 위임)                        │
+└─────────────────────────────────────────────────────────────┘
+                              ↓ 의존
+┌─────────────────────────────────────────────────────────────┐
+│                      Domain 계층                             │
+│  model/    Payment, Money, Country, PaymentStatus           │
+│  policy/   DiscountPolicy, TaxPolicy                        │
+│  repository/  PaymentRepository (인터페이스)                 │
+│                                                              │
+│  - 핵심 비즈니스 로직                                        │
+└─────────────────────────────────────────────────────────────┘
+                              ↑ 구현
+┌─────────────────────────────────────────────────────────────┐
+│                   Infrastructure 계층                        │
+│  JpaPaymentRepository, MoneyConverter, CountryConverter     │
+│  - Repository 구현체 (Spring Data JPA)                       │
+│  - Value Object ↔ DB 컬럼 변환 (Converter)                   │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## 패키지 구조
 
 ```
-com.example.payment_ddd_v1/
+payment_ddd_v1/
+├── PaymentDddV1Application.java       # 메인 애플리케이션
 │
-├── PaymentDddV1Application.java      # Spring Boot 메인 클래스
+├── interfaces/                         # 사용자 인터페이스 계층
+│   ├── PaymentController.java         # REST API
+│   └── PaymentDto.java                # 요청/응답 DTO
 │
-├── domain/                           # [1] 도메인 계층
+├── application/                        # 응용 서비스 계층
+│   └── PaymentService.java            # 유스케이스 조율
+│
+├── domain/                             # 도메인 계층 (핵심!)
 │   ├── model/
-│   │   ├── Payment.java              # 엔티티 (Rich Domain Model)
-│   │   ├── PaymentStatus.java        # 상태 열거형
-│   │   ├── Money.java                # Value Object
-│   │   └── Country.java              # Value Object
+│   │   ├── Payment.java               # Aggregate Root (JPA Entity)
+│   │   ├── PaymentStatus.java         # 상태 열거형
+│   │   ├── Money.java                 # Value Object
+│   │   └── Country.java               # Value Object
 │   ├── policy/
-│   │   ├── DiscountPolicy.java       # 할인 정책 인터페이스
-│   │   ├── VipDiscountPolicy.java    # 할인 정책 구현체
-│   │   ├── TaxPolicy.java            # 세금 정책 인터페이스
-│   │   └── KoreaTaxPolicy.java       # 세금 정책 구현체
+│   │   ├── DiscountPolicy.java        # 할인 정책 인터페이스
+│   │   ├── VipDiscountPolicy.java     # VIP 할인 구현
+│   │   ├── TaxPolicy.java             # 세금 정책 인터페이스
+│   │   └── KoreaTaxPolicy.java        # 한국 세금 구현
 │   └── repository/
-│       └── PaymentRepository.java    # 저장소 인터페이스
+│       └── PaymentRepository.java     # Repository 인터페이스 (DIP)
 │
-├── application/                      # [2] 애플리케이션 계층
-│   └── PaymentService.java           # 유스케이스 조율
-│
-├── infrastructure/                   # [3] 인프라스트럭처 계층
-│   └── JpaPaymentRepository.java     # 저장소 구현체
-│
-└── interfaces/                       # [4] 인터페이스 계층
-    ├── PaymentController.java        # REST API
-    └── PaymentDto.java               # 요청/응답 DTO
+└── infrastructure/                     # 인프라 계층
+    ├── JpaPaymentRepository.java      # Repository 구현체
+    ├── SpringDataPaymentRepository.java  # Spring Data JPA
+    └── converter/
+        ├── MoneyConverter.java        # Money -> DB Double
+        └── CountryConverter.java      # Country -> DB String
 ```
-
----
-
-## 4계층 아키텍처
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Interfaces (인터페이스)                    │
-│                    - Controller, DTO                         │
-│                    - 외부 요청 처리                           │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   Application (애플리케이션)                  │
-│                   - Service                                  │
-│                   - 유스케이스 조율, 트랜잭션                  │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      Domain (도메인)                         │
-│                      - Entity, Value Object                  │
-│                      - Policy, Repository Interface          │
-│                      - 비즈니스 로직의 핵심                   │
-└─────────────────────────────────────────────────────────────┘
-                              ▲
-                              │
-┌─────────────────────────────────────────────────────────────┐
-│                  Infrastructure (인프라)                     │
-│                  - Repository 구현체                         │
-│                  - 외부 시스템 연동                          │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 의존성 방향
-
-```
-Interfaces → Application → Domain ← Infrastructure
-```
-
-- **Domain은 어떤 계층에도 의존하지 않음** (핵심!)
-- Infrastructure가 Domain에 의존 (의존성 역전)
-- 화살표 방향 = 의존 방향
-
----
-
-## 각 계층별 역할
-
-### 1. Domain (도메인 계층)
-
-**위치:** `domain/`
-
-**역할:**
-- 비즈니스 로직의 핵심
-- 기술에 독립적 (Spring, JPA 등에 의존하지 않음)
-
-**구성 요소:**
-
-| 구성 요소 | 파일 | 설명 |
-|----------|------|------|
-| Entity | `Payment.java` | 비즈니스 로직을 포함한 도메인 객체 |
-| Value Object | `Money.java` | 불변 객체, 금액 표현 |
-| Value Object | `Country.java` | 불변 객체, 국가 코드 검증 |
-| Policy | `DiscountPolicy.java` | 비즈니스 규칙 캡슐화 |
-| Repository | `PaymentRepository.java` | 저장소 인터페이스 (구현 아님!) |
-
-**핵심 코드:**
-
-```java
-// Entity - 비즈니스 로직 포함
-public class Payment {
-    public void complete() {
-        if (this.status != PaymentStatus.PENDING) {
-            throw new IllegalStateException("대기 상태만 완료 가능");
-        }
-        this.status = PaymentStatus.COMPLETED;
-    }
-}
-
-// Value Object - 불변, 자가 검증
-public class Money {
-    private final double amount;
-
-    private Money(double amount) {
-        if (amount < 0) throw new IllegalArgumentException("음수 불가");
-        this.amount = amount;
-    }
-}
-
-// Value Object - 유효한 값만 허용
-public class Country {
-    private static final Set<String> SUPPORTED = Set.of("KR", "US");
-    private final String code;
-
-    private Country(String code) {
-        if (!SUPPORTED.contains(code.toUpperCase())) {
-            throw new IllegalArgumentException("지원하지 않는 국가");
-        }
-        this.code = code.toUpperCase();
-    }
-}
-```
-
----
-
-### 2. Application (애플리케이션 계층)
-
-**위치:** `application/`
-
-**역할:**
-- 유스케이스 조율 (Orchestration)
-- 트랜잭션 경계 관리
-- 도메인 객체 조합
-
-**주의:**
-- 비즈니스 로직은 Domain에 위임
-- 여기서는 흐름만 제어
-
-**핵심 코드:**
-
-```java
-@Service
-@Transactional
-public class PaymentService {
-
-    public Payment createPayment(...) {
-        // 1. 할인 적용 (Policy 사용)
-        Money discounted = discountPolicy.apply(originalPrice, isVip);
-
-        // 2. 세금 적용 (Policy 사용)
-        Money taxed = taxPolicy.apply(discounted);
-
-        // 3. 결제 생성 (Entity 팩토리)
-        Payment payment = Payment.create(...);
-
-        // 4. 완료 처리 (Entity 메서드)
-        payment.complete();
-
-        // 5. 저장 (Repository)
-        return paymentRepository.save(payment);
-    }
-}
-```
-
----
-
-### 3. Infrastructure (인프라스트럭처 계층)
-
-**위치:** `infrastructure/`
-
-**역할:**
-- Domain 인터페이스의 구현
-- 데이터베이스, 외부 시스템 연동
-
-**핵심 코드:**
-
-```java
-@Repository
-public class JpaPaymentRepository implements PaymentRepository {
-
-    // Domain의 PaymentRepository 인터페이스 구현
-    @Override
-    public Payment save(Payment payment) {
-        // 실제 저장 로직
-    }
-}
-```
-
-**왜 이렇게 분리하나요?**
-- Domain이 DB 기술에 의존하지 않음
-- JPA → MongoDB 변경 시 이 파일만 수정
-- 테스트 시 Mock으로 쉽게 교체
-
----
-
-### 4. Interfaces (인터페이스 계층)
-
-**위치:** `interfaces/`
-
-**역할:**
-- 외부 요청 처리 (REST API, GraphQL, CLI 등)
-- DTO 변환
-- HTTP 상태 코드 결정
-
-**핵심 코드:**
-
-```java
-@RestController
-@RequestMapping("/api/v1/payments")
-public class PaymentController {
-
-    @PostMapping
-    public ResponseEntity<PaymentDto.Response> createPayment(
-            @RequestBody PaymentDto.Request request) {
-
-        Payment payment = paymentService.createPayment(...);
-
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(PaymentDto.Response.from(payment));
-    }
-}
-```
-
----
-
-## 핵심 패턴 요약
-
-| 패턴 | 파일 | 설명 |
-|------|------|------|
-| Rich Domain Model | `Payment.java` | 엔티티가 비즈니스 로직 보유 |
-| Value Object | `Money.java`, `Country.java` | 불변 객체, 값 동등성, 자가 검증 |
-| Policy | `DiscountPolicy.java` | 비즈니스 규칙 캡슐화 |
-| Repository | `PaymentRepository.java` | 저장소 추상화 |
-| DIP | Domain ← Infrastructure | 의존성 역전 |
 
 ---
 
 ## 실행 방법
 
 ```bash
+# payment-processor 디렉토리에서
+cd payment-processor
+
+# 실행
 ./gradlew bootRun -PmainClass=com.example.payment_ddd_v1.PaymentDddV1Application
+```
+
+---
+
+## H2 Console 접속
+
+```
+URL: http://localhost:8080/h2-console
+JDBC URL: jdbc:h2:mem:paymentdb
+Username: sa
+Password: (비워둠)
+```
+
+**테이블 확인:**
+```sql
+SELECT * FROM payments_ddd_v1;
 ```
 
 ---
 
 ## API 엔드포인트
 
-| 메서드 | URL | 설명 |
-|--------|-----|------|
-| POST | /api/v1/payments | 결제 생성 |
-| GET | /api/v1/payments/{id} | 결제 조회 |
-| GET | /api/v1/payments | 전체 조회 |
-| PATCH | /api/v1/payments/{id}/refund | 환불 |
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| POST | /api/ddd/v1/payments | 결제 생성 |
+| GET | /api/ddd/v1/payments/{id} | 결제 조회 |
+| GET | /api/ddd/v1/payments | 전체 조회 |
+| POST | /api/ddd/v1/payments/{id}/refund | 환불 처리 |
 
----
+### 요청 예시
 
-## 요청/응답 예시
+```bash
+# 결제 생성
+curl -X POST http://localhost:8080/api/ddd/v1/payments \
+  -H "Content-Type: application/json" \
+  -d '{"amount": 10000, "countryCode": "KR", "isVip": true}'
 
-### 결제 생성 요청
+# 결제 조회
+curl http://localhost:8080/api/ddd/v1/payments/1
 
-```json
-POST /api/v1/payments
-{
-  "amount": 10000,
-  "country": "KR",
-  "isVip": true
-}
-```
-
-### 응답
-
-```json
-{
-  "id": 1,
-  "originalPrice": 10000,
-  "discountedAmount": 8500,
-  "taxedAmount": 9350,
-  "country": "KR",
-  "isVip": true,
-  "status": "COMPLETED"
-}
+# 환불
+curl -X POST http://localhost:8080/api/ddd/v1/payments/1/refund
 ```
 
 ---
 
-## 다음 단계 (심화)
+## JPA 영속화 구조
 
-이 패키지에서 다루지 않은 DDD 패턴:
+### Value Object 매핑 (@Convert)
 
-| 패턴 | 설명 | 복잡도 |
-|------|------|--------|
-| Domain Event | 도메인 이벤트 발행/구독 | 중 |
-| Aggregate | 트랜잭션 일관성 경계 | 중 |
-| CQRS | 명령/조회 분리 | 상 |
-| Event Sourcing | 이벤트 기반 상태 관리 | 상 |
+```java
+// Payment.java
+@Entity
+@Table(name = "payments_ddd_v1")
+public class Payment {
 
-심화 버전은 `com.example.payment_ddd` 패키지를 참고.
+    @Convert(converter = MoneyConverter.class)
+    @Column(name = "original_price", nullable = false)
+    private Money originalPrice;
+
+    @Convert(converter = CountryConverter.class)
+    @Column(nullable = false, length = 10)
+    private Country country;
+}
+```
+
+### Converter 구현
+
+```java
+// MoneyConverter.java
+@Converter
+public class MoneyConverter implements AttributeConverter<Money, Double> {
+
+    @Override
+    public Double convertToDatabaseColumn(Money money) {
+        return money == null ? null : money.getAmount();
+    }
+
+    @Override
+    public Money convertToEntityAttribute(Double amount) {
+        return amount == null ? null : Money.of(amount);
+    }
+}
+```
+
+### Repository 계층 구조 (DIP)
+
+```
+Domain 계층:
+    PaymentRepository (인터페이스)  ← PaymentService가 의존
+
+Infrastructure 계층:
+    JpaPaymentRepository (구현체)
+         ↓ 위임
+    SpringDataPaymentRepository (Spring Data JPA)
+```
+
+---
+
+## 테이블 구조
+
+```sql
+CREATE TABLE payments_ddd_v1 (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    original_price DOUBLE NOT NULL,      -- Money VO
+    discounted_amount DOUBLE NOT NULL,   -- Money VO
+    taxed_amount DOUBLE NOT NULL,        -- Money VO
+    country VARCHAR(10) NOT NULL,        -- Country VO
+    vip BOOLEAN NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);
+```
+
+---
+
+## 핵심 DDD 개념
+
+### 1. Rich Domain Model
+
+```java
+public class Payment {
+    // 비즈니스 로직이 Entity 내부에 캡슐화
+    public void complete() {
+        if (this.status != PaymentStatus.PENDING) {
+            throw new IllegalStateException("...");
+        }
+        this.status = PaymentStatus.COMPLETED;
+    }
+
+    public void refund() {
+        if (this.status != PaymentStatus.COMPLETED) {
+            throw new IllegalStateException("...");
+        }
+        this.status = PaymentStatus.REFUNDED;
+    }
+}
+```
+
+### 2. Value Object
+
+```java
+public class Money {
+    private final double amount;  // 불변
+
+    private Money(double amount) {
+        if (amount < 0) {  // 자가 검증
+            throw new IllegalArgumentException("...");
+        }
+        this.amount = amount;
+    }
+
+    public static Money of(double amount) {
+        return new Money(amount);
+    }
+
+    // equals/hashCode 구현 (값 동등성)
+}
+```
+
+### 3. 의존성 역전 (DIP)
+
+```java
+// Domain 계층 - 인터페이스만 정의
+public interface PaymentRepository {
+    Payment save(Payment payment);
+    Optional<Payment> findById(Long id);
+}
+
+// Infrastructure 계층 - 구현
+@Repository
+public class JpaPaymentRepository implements PaymentRepository {
+    private final SpringDataPaymentRepository springDataRepository;
+
+    @Override
+    public Payment save(Payment payment) {
+        return springDataRepository.save(payment);
+    }
+}
+```
+
+---
+
+## 상태 전이
+
+```
+              complete()
+    PENDING ──────────────> COMPLETED
+        │                       │
+        │ fail()                │ refund()
+        ▼                       ▼
+     FAILED                 REFUNDED
+```
+
+---
+
+## Anemic vs Rich Domain Model 비교
+
+| 관점 | Anemic (payment_ul) | Rich (payment_ddd_v1) |
+|------|---------------------|----------------------|
+| Entity | 데이터만 보유 | 데이터 + 비즈니스 로직 |
+| Service | 비즈니스 로직 처리 | 흐름 조율만 |
+| 상태 변경 | setter 사용 | 비즈니스 메서드 |
+| 테스트 초점 | Service 테스트 | Entity 테스트 |
+
+---
+
+## 테스트
+
+### 테스트 구조
+
+```
+src/test/java/com/example/payment_ddd_v1/
+├── domain/
+│   ├── model/
+│   │   ├── MoneyTest.java          # Money VO 단위 테스트
+│   │   └── PaymentTest.java        # Payment 엔티티 단위 테스트
+│   └── policy/
+│       └── DiscountPolicyTest.java # 할인 정책 테스트
+├── application/
+│   └── PaymentServiceTest.java     # 서비스 단위 테스트 (Mock)
+└── PaymentDddV1IntegrationTest.java # 통합 테스트
+```
+
+### 테스트 실행
+
+```bash
+# 전체 테스트 실행
+./gradlew test
+
+# 특정 패키지 테스트만 실행
+./gradlew test --tests "com.example.payment_ddd_v1.*"
+
+# 단위 테스트만 실행
+./gradlew test --tests "com.example.payment_ddd_v1.domain.*"
+
+# 통합 테스트만 실행
+./gradlew test --tests "com.example.payment_ddd_v1.PaymentDddV1IntegrationTest"
+```
+
+### 테스트 유형
+
+| 유형 | 설명 | 특징 |
+|------|------|------|
+| Domain 단위 테스트 | Entity, Value Object 테스트 | Spring 불필요, 빠름 |
+| Service 단위 테스트 | Mock Repository 사용 | Spring 불필요, 빠름 |
+| 통합 테스트 | 전체 계층 테스트 | Spring Context, H2 DB |
+
+### 주요 테스트 케이스
+
+**PaymentTest (도메인 테스트)**
+- 결제 생성 테스트
+- 상태 전이 테스트 (PENDING → COMPLETED → REFUNDED)
+- 비즈니스 규칙 검증 (잘못된 상태 전이 예외)
+
+**MoneyTest (Value Object 테스트)**
+- 생성 및 검증 (음수 금액 예외)
+- 불변성 테스트
+- 연산 테스트 (add, subtract, multiply)
+- 동등성 테스트
+
+**PaymentServiceTest (서비스 테스트)**
+- 일반/VIP 결제 생성
+- 할인율 적용 검증
+- Repository 협력 검증
+
+**PaymentDddV1IntegrationTest (통합 테스트)**
+- 결제 생성 및 DB 저장
+- 상태 변경 및 영속화
+- 예외 케이스
