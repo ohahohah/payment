@@ -1,8 +1,8 @@
-# Payment DDD V1 - DDD 계층형 아키텍처 예제
+# Payment DDD V1 - DDD 레이어드 아키텍처 예제
 
 ## 개요
 
-DDD(Domain-Driven Design) 계층형 아키텍처를 적용한 결제 시스템입니다.
+DDD(Domain-Driven Design) 레이어드 아키텍처를 적용한 결제 시스템.
 
 **주요 특징:**
 - Rich Domain Model (비즈니스 로직이 Entity에 캡슐화)
